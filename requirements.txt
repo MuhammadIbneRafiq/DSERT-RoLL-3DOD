@@ -6,7 +6,7 @@ opencv-python-headless==4.6.0.66
 
 # pickle5 is needed because some label.pkl files in the dataset use
 # pickle protocol 5, which Python 3.6 stdlib pickle does not support.
-pickle5
+# pickle5
 
 # pycocotools is a transitive dep of vendored mmdet (used by mask utils).
 pycocotools
