@@ -1,4 +1,8 @@
 import os
+# spconv/cumm wheels JIT-rebuild themselves if a stray setup.py/.gitignore sits in
+# site-packages (e.g. Kaggle), which fails; always use the prebuilt binaries.
+os.environ.setdefault('CUMM_DISABLE_JIT', '1')
+os.environ.setdefault('SPCONV_DISABLE_JIT', '1')
 import re
 import glob
 import time
