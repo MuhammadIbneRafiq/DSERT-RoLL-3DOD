@@ -1,12 +1,16 @@
 # Pin opencv to the last pre-built wheel for Python 3.6 (the project's
 # pinned interpreter). Without this pin, pip falls back to a source build
-# that fails and rolls back the whole install.
-opencv-python==4.6.0.66
-opencv-python-headless==4.6.0.66
+# that fails and rolls back the whole install. On newer Pythons (e.g. Kaggle /
+# Colab, Python 3.12 + NumPy 2) keep the preinstalled opencv: 4.6 wheels are
+# built against NumPy 1.x and crash on import under NumPy 2.
+opencv-python==4.6.0.66; python_version < "3.8"
+opencv-python-headless==4.6.0.66; python_version < "3.8"
+opencv-python-headless; python_version >= "3.8"
 
 # pickle5 is needed because some label.pkl files in the dataset use
 # pickle protocol 5, which Python 3.6 stdlib pickle does not support.
-pickle5
+# Python >= 3.8 supports protocol 5 natively (and pickle5 does not build there).
+pickle5; python_version < "3.8"
 
 # pycocotools is a transitive dep of vendored mmdet (used by mask utils).
 pycocotools

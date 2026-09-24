@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
+# Checkpoints hold non-tensor objects; torch>=2.6 defaults torch.load to weights_only=True.
+os.environ.setdefault('TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD', '1')
 from tensorboardX import SummaryWriter
 
 from al3d_utils import common_utils
@@ -29,7 +31,9 @@ def parse_config():
     parser.add_argument('--ckpt', type=str, default=None, help='checkpoint to start from')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none')
     parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
-    parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
+    # torch>=2.0 launchers pass --local-rank (and set LOCAL_RANK) instead of --local_rank
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=int(os.environ.get('LOCAL_RANK', 0)),
+                        help='local rank for distributed training')
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
 

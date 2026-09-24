@@ -15,4 +15,4 @@ do
 done
 echo $PORT
 
-CUDA_VISIBLE_DEVICES=${NGPUSLIST} OMP_NUM_THREADS=4 python -m torch.distributed.launch --nproc_per_node=${NGPUS}  --rdzv_endpoint=localhost:${PORT} train_mm.py --launcher pytorch ${PY_ARGS}
+CUDA_VISIBLE_DEVICES=${NGPUSLIST} OMP_NUM_THREADS=4 python -m torch.distributed.run --nproc_per_node=${NGPUS}  --rdzv_endpoint=localhost:${PORT} train_mm.py --launcher pytorch ${PY_ARGS}

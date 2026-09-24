@@ -1,5 +1,8 @@
 import os
-import pickle5 as pickle
+try:
+    import pickle5 as pickle  # Python < 3.8 needs this for protocol-5 pickles
+except ImportError:
+    import pickle
 import copy
 
 import numpy as np

@@ -20,9 +20,12 @@ mmcv_maximum_version = '1.4.0'
 mmcv_version = digit_version(mmcv.__version__)
 
 
-assert (mmcv_version >= digit_version(mmcv_minimum_version)
-        and mmcv_version <= digit_version(mmcv_maximum_version)), \
-    f'MMCV=={mmcv.__version__} is used but incompatible. ' \
-    f'Please install mmcv>={mmcv_minimum_version}, <={mmcv_maximum_version}.'
+# DSERT only uses the Swin backbone + FPN neck from this vendored mmdet, which
+# also work with newer mmcv 1.x (e.g. 1.7.2 on PyTorch 2.x), so warn instead of assert.
+if not (mmcv_version >= digit_version(mmcv_minimum_version)
+        and mmcv_version <= digit_version(mmcv_maximum_version)):
+    import warnings
+    warnings.warn(f'MMCV=={mmcv.__version__} is outside the tested range '
+                  f'[{mmcv_minimum_version}, {mmcv_maximum_version}].')
 
 __all__ = ['__version__', 'short_version']

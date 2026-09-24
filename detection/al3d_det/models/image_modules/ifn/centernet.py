@@ -86,7 +86,7 @@ class CenterNet(Detector2DTemplate):
     def vis_bev_peseudo_box(self, pred_dicts, batch_dict):
         temp_tb_dict = {}
 
-        img_range = (self.range[[0, 1, 3, 4]]).astype(np.int) # (4,1)
+        img_range = (self.range[[0, 1, 3, 4]]).astype(int) # (4,1)
 
         img = np.ones([self.grid_size[0], self.grid_size[1], 3])
 
@@ -109,7 +109,7 @@ class CenterNet(Detector2DTemplate):
         pred_img = self.vis.add_boxes_2_img(pred_img, pred_bev_box_list, pred_ids)
 
         gt_boxes = batch_dict['gt_boxes'][0].cpu().numpy()
-        gt_id_list = batch_dict['gt_boxes'][0, :, -1].cpu().numpy().astype(np.int)
+        gt_id_list = batch_dict['gt_boxes'][0, :, -1].cpu().numpy().astype(int)
         gt_bev_box_list = []
         for gt_box  in gt_boxes:
             if gt_box[0] <= img_range[0] or gt_box[1] <= img_range[1] or \
@@ -135,7 +135,7 @@ class CenterNet(Detector2DTemplate):
     def vis_bev_peseudo_box_v0(self, pred_dicts, batch_dict):
         temp_tb_dict = {}
 
-        img_range = (self.range[[0, 1, 3, 4]]).astype(np.int) # (4,1)
+        img_range = (self.range[[0, 1, 3, 4]]).astype(int) # (4,1)
         vis_scale = 10 # which is important
         img = np.ones([ vis_scale * (img_range[2] - img_range[0] + 1), \
                         vis_scale * (img_range[3] - img_range[1] + 1), 3])
@@ -150,7 +150,7 @@ class CenterNet(Detector2DTemplate):
         x_c, y_c = vis_scale * (pred_boxes[:, 0] - img_range[0]), \
                     vis_scale * (pred_boxes[:, 1] - img_range[1])
         pred_bev_box_list = np.array([x_c, y_c, x_c + vis_scale * pred_boxes[:, 3], \
-                                        y_c + vis_scale * pred_boxes[:, 4]]).astype(np.int).transpose()
+                                        y_c + vis_scale * pred_boxes[:, 4]]).astype(int).transpose()
 
         img = self.vis.add_boxes_2_img(img, pred_bev_box_list, pred_ids)
 

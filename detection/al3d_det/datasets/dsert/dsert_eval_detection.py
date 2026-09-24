@@ -1,24 +1,76 @@
 import argparse
+import os
 import pickle
+import subprocess
+import sys
+import tempfile
 
 import numpy as np
-import tensorflow as tf
-from google.protobuf import text_format
-from waymo_open_dataset.metrics.python import detection_metrics
-from waymo_open_dataset.protos import metrics_pb2
 
+# waymo-open-dataset has no wheels for Python >= 3.11. When it is missing,
+# the metric runs in a separate interpreter given by WAYMO_EVAL_PYTHON
+# (e.g. a Python 3.10 venv with waymo-open-dataset-tf-2-12-0 installed).
 try:
-    # 신형
-    from waymo_open_dataset.protos import label_pb2 as _label_mod
+    import tensorflow as tf
+    from google.protobuf import text_format
+    from waymo_open_dataset.metrics.python import detection_metrics
+    from waymo_open_dataset.protos import metrics_pb2
+    HAS_WAYMO = True
 except ImportError:
+    HAS_WAYMO = False
+
+_label_mod = None
+if HAS_WAYMO:
     try:
-        # 구형(최상위 경로)
-        from waymo_open_dataset import label_pb2 as _label_mod
+        # 신형
+        from waymo_open_dataset.protos import label_pb2 as _label_mod
     except ImportError:
-        _label_mod = None  # 정말 구버전이면 아래에서 우회 처리
+        try:
+            # 구형(최상위 경로)
+            from waymo_open_dataset import label_pb2 as _label_mod
+        except ImportError:
+            _label_mod = None  # 정말 구버전이면 아래에서 우회 처리
+
+    tf.get_logger().setLevel('INFO')
 
 
-tf.get_logger().setLevel('INFO')
+def _to_plain(obj):
+    """Encode numpy objects as plain Python so the pickle loads under any numpy version."""
+    if isinstance(obj, np.ndarray):
+        return {'__ndarray__': obj.tolist(), 'dtype': obj.dtype.str, 'shape': obj.shape}
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if isinstance(obj, dict):
+        return {k: _to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(_to_plain(v) for v in obj)
+    return obj
+
+
+def _from_plain(obj):
+    if isinstance(obj, dict):
+        if '__ndarray__' in obj:
+            return np.array(obj['__ndarray__'], dtype=np.dtype(obj['dtype'])).reshape(obj['shape'])
+        return {k: _from_plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(_from_plain(v) for v in obj)
+    return obj
+
+
+def _waymo_evaluation_subprocess(kwargs):
+    python = os.environ.get('WAYMO_EVAL_PYTHON')
+    if not python:
+        raise ImportError(
+            'waymo_open_dataset/tensorflow are not importable in this interpreter. '
+            'Install them, or set WAYMO_EVAL_PYTHON to a Python 3.10 interpreter that has '
+            'waymo-open-dataset-tf-2-12-0 installed.')
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path, out_path = os.path.join(tmp, 'in.pkl'), os.path.join(tmp, 'out.pkl')
+        with open(in_path, 'wb') as f:
+            pickle.dump(_to_plain(kwargs), f, protocol=4)
+        subprocess.run([python, os.path.abspath(__file__), '--worker', in_path, out_path], check=True)
+        with open(out_path, 'rb') as f:
+            return _from_plain(pickle.load(f))
 
 DEFAULT_IOU_THRESH = {
     'unknown': 0.0,      # Waymo config 상 첫 항목(unknown) 보통 0.0 유지
@@ -60,7 +112,7 @@ def limit_period(val, offset=0.5, period=np.pi):
     return val - np.floor(val / period + offset) * period
 
 
-class WaymoDetectionMetricsEstimator(tf.test.TestCase):
+class WaymoDetectionMetricsEstimator(tf.test.TestCase if HAS_WAYMO else object):
     WAYMO_CLASSES = ['unknown', 'Vehicle', 'Pedestrian', 'Truck', 'Bike']
     def __init__(self, iou_overrides=None):
         super().__init__()
@@ -313,6 +365,12 @@ class WaymoDetectionMetricsEstimator(tf.test.TestCase):
         return tuple(ret_ans)
 
     def waymo_evaluation(self, prediction_infos, gt_infos, class_name, distance_thresh=100, fake_gt_infos=True, fov_flag=False):
+        if not HAS_WAYMO:
+            return _waymo_evaluation_subprocess(dict(
+                iou_overrides=self.iou_overrides, prediction_infos=prediction_infos, gt_infos=gt_infos,
+                class_name=class_name, distance_thresh=distance_thresh,
+                fake_gt_infos=fake_gt_infos, fov_flag=fov_flag,
+            ))
         print('Start the waymo evaluation...')
         assert len(prediction_infos) == len(gt_infos), '%d vs %d' % (prediction_infos.__len__(), gt_infos.__len__())
 
@@ -360,7 +418,20 @@ class WaymoDetectionMetricsEstimator(tf.test.TestCase):
         return aps
 
 
+def _worker(in_path, out_path):
+    with open(in_path, 'rb') as f:
+        kwargs = _from_plain(pickle.load(f))
+    estimator = WaymoDetectionMetricsEstimator(iou_overrides=kwargs.pop('iou_overrides'))
+    aps = estimator.waymo_evaluation(**kwargs)
+    with open(out_path, 'wb') as f:
+        pickle.dump(_to_plain(aps), f, protocol=4)
+
+
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == '--worker':
+        _worker(sys.argv[2], sys.argv[3])
+        return
+
     parser = argparse.ArgumentParser(description='arg parser')
     parser.add_argument('--pred_infos', type=str, default=None, help='pickle file')
     parser.add_argument('--gt_infos', type=str, default=None, help='pickle file')
