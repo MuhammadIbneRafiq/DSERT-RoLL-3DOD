@@ -11,7 +11,6 @@ from al3d_utils.ops.pointnet2.pointnet2_stack.pointnet2_modules import StackSAMo
 from al3d_det.utils import loss_utils, box_coder_utils
 from al3d_det.utils.model_nms_utils import class_agnostic_nms
 from al3d_det.utils.attention_utils import TransformerEncoder, get_positional_encoder
-from al3d_det.models import fusion_modules 
 from .proposal_target_layer import ProposalTargetLayer
 import pdb
 
@@ -336,36 +335,11 @@ class VoxelAggregationHead(RoIHeadTemplate):
             for p in self.attention_head.parameters():
                 if p.dim() > 1:
                     nn.init.xavier_uniform_(p)
-        self.crossattention_head = fusion_modules.__all__[self.pool_cfg.FUSION.NAME](
-                fuse_mode=self.pool_cfg.FUSION.FUSE_MODE, 
-                interpolate=False, 
-                voxel_size=voxel_size, 
-                pc_range=point_cloud_range, 
-                image_list=self.pool_cfg.FUSION.CAMERAS, 
-                image_scale=self.pool_cfg.FUSION.IMAGE_SCALE, 
-                depth_thres=self.pool_cfg.FUSION.DEPTH_THRES, 
-                layer_channel=self.pool_cfg.FUSION.LAYER_CHANNEL,
-                mid_channels=self.pool_cfg.FUSION.MID_CHANNELS,
-                double_flip=False, 
-                dropout_ratio=0,
-                activate_out=True,
-                fuse_out=True
-        )
-        self.crossattention_pointhead = fusion_modules.__all__[self.pool_cfg.FUSION.NAME](
-                fuse_mode=self.pool_cfg.FUSION.FUSE_MODE, 
-                interpolate=False, 
-                voxel_size=voxel_size, 
-                pc_range=point_cloud_range, 
-                image_list=self.pool_cfg.FUSION.CAMERAS, 
-                image_scale=self.pool_cfg.FUSION.IMAGE_SCALE, 
-                depth_thres=self.pool_cfg.FUSION.DEPTH_THRES, 
-                layer_channel=self.pool_cfg.FUSION.LAYER_CHANNEL,
-                mid_channels=self.pool_cfg.FUSION.MID_CHANNELS,
-                double_flip=False, 
-                dropout_ratio=0,
-                activate_out=True,
-                fuse_out=True
-        )
+        # Camera cross-attention is optional: drop FUSION (or set FUSION.ENABLED: False) for LiDAR-only models.
+        fusion_cfg = self.pool_cfg.get('FUSION', None)
+        self.use_fusion = fusion_cfg is not None and fusion_cfg.get('ENABLED', True)
+        if self.use_fusion:
+            self._build_fusion(voxel_size, point_cloud_range)
         GRID_SIZE = self.model_cfg.ROI_GRID_POOL.GRID_SIZE
         pre_channel = GRID_SIZE * GRID_SIZE * GRID_SIZE * c_out
 
@@ -394,6 +368,40 @@ class VoxelAggregationHead(RoIHeadTemplate):
         )
 
         self.init_weights(weight_init='xavier')
+
+    def _build_fusion(self, voxel_size, point_cloud_range):
+        # Imported here so LiDAR-only setups never load the camera/mmdet stack.
+        from al3d_det.models import fusion_modules
+        self.crossattention_head = fusion_modules.__all__[self.pool_cfg.FUSION.NAME](
+                fuse_mode=self.pool_cfg.FUSION.FUSE_MODE,
+                interpolate=False,
+                voxel_size=voxel_size,
+                pc_range=point_cloud_range,
+                image_list=self.pool_cfg.FUSION.CAMERAS,
+                image_scale=self.pool_cfg.FUSION.IMAGE_SCALE,
+                depth_thres=self.pool_cfg.FUSION.DEPTH_THRES,
+                layer_channel=self.pool_cfg.FUSION.LAYER_CHANNEL,
+                mid_channels=self.pool_cfg.FUSION.MID_CHANNELS,
+                double_flip=False,
+                dropout_ratio=0,
+                activate_out=True,
+                fuse_out=True
+        )
+        self.crossattention_pointhead = fusion_modules.__all__[self.pool_cfg.FUSION.NAME](
+                fuse_mode=self.pool_cfg.FUSION.FUSE_MODE,
+                interpolate=False,
+                voxel_size=voxel_size,
+                pc_range=point_cloud_range,
+                image_list=self.pool_cfg.FUSION.CAMERAS,
+                image_scale=self.pool_cfg.FUSION.IMAGE_SCALE,
+                depth_thres=self.pool_cfg.FUSION.DEPTH_THRES,
+                layer_channel=self.pool_cfg.FUSION.LAYER_CHANNEL,
+                mid_channels=self.pool_cfg.FUSION.MID_CHANNELS,
+                double_flip=False,
+                dropout_ratio=0,
+                activate_out=True,
+                fuse_out=True
+        )
 
     def init_weights(self, weight_init='xavier'):
         if weight_init == 'kaiming':
@@ -583,7 +591,10 @@ class VoxelAggregationHead(RoIHeadTemplate):
                 grid_coords_idlist.append(batch_idx)
             grid_coordid = torch.cat(grid_coords_idlist, dim=0).to(global_roi_grid_points.device)
             grid_coords = torch.cat((grid_coordid, global_roi_grid_points.view(-1, 3)), dim=-1)
-            localgrid_densityfeat_fuse = self.crossattention_pointhead(batch_dict, point_features=localgrid_densityfeat, point_coords=grid_coords, layer_name="layer1")
+            if self.use_fusion:
+                localgrid_densityfeat_fuse = self.crossattention_pointhead(batch_dict, point_features=localgrid_densityfeat, point_coords=grid_coords, layer_name="layer1")
+            else:
+                localgrid_densityfeat_fuse = localgrid_densityfeat
             # localgrid_densityfeat_fuse = localgrid_densityfeat_fuse.reshape(pooled_features.shape[0], pooled_features.shape[1], 64)
             localgrid_densityfeat_fuse = localgrid_densityfeat_fuse.reshape(pooled_features.shape[0], pooled_features.shape[1], self.ffn_hidden_feat)
             localgrid_densityfeat_fuse = self.up_ffn(localgrid_densityfeat_fuse.permute(0, 2, 1))
@@ -678,7 +689,7 @@ class LoGoHead(VoxelAggregationHead):
 
                 point_coords[feature_location] = centroids[overlapping_voxel_feature_nonempty_mask]
                 coords = centroids[overlapping_voxel_feature_nonempty_mask]
-                if feature_location==self.model_cfg.VOXEL_AGGREGATION.FEATURE_LOCATIONS[0]:                   
+                if self.use_fusion and feature_location==self.model_cfg.VOXEL_AGGREGATION.FEATURE_LOCATIONS[0]:
                     point_features_fuse = self.crossattention_head(batch_dict, point_features=x_conv_features[overlapping_voxel_feature_nonempty_mask], point_coords=coords, layer_name="layer1")
                     point_features[feature_location] = point_features_fuse
                 else:

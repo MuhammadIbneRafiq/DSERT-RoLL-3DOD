@@ -38,7 +38,7 @@ def parse_config():
     parser.add_argument('--sync_bn', action='store_true', default=False, help='whether to use sync bn')
     parser.add_argument('--fix_random_seed', action='store_true', default=False, help='')
     parser.add_argument('--ckpt_save_interval', type=int, default=1, help='number of training epochs')
-    parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=0, help='local rank for distributed training')
     parser.add_argument('--max_ckpt_save_num', type=int, default=30, help='max number of saved checkpoint')
     parser.add_argument('--merge_all_iters_to_one_epoch', action='store_true', default=False, help='')
     parser.add_argument('--find_unused_parameters', action='store_true', default=False, help='')             
@@ -47,8 +47,20 @@ def parse_config():
     parser.add_argument('--max_waiting_mins', type=int, default=0, help='max waiting minutes')
     parser.add_argument('--start_epoch', type=int, default=0, help='')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
+    parser.add_argument('--amp', choices=['none', 'fp16', 'bf16'], default='none',
+                        help='mixed precision for the encoder (models with set_amp, e.g. CenterPointSingle)')
+    parser.add_argument('--compile', action='store_true', default=False,
+                        help='torch.compile the dense layers (models with compile_dense, e.g. CenterPointSingle)')
+    parser.add_argument('--compile_mode', type=str, default='default',
+                        help='torch.compile mode: default | reduce-overhead | max-autotune')
+    parser.add_argument('--pretrained_scope', choices=['all', 'encoder'], default='all',
+                        help="with --pretrained_model: 'encoder' copies only the 3D/BEV backbones, heads start fresh")
+    parser.add_argument('--skip_final_eval', action='store_true', default=False,
+                        help='do not run the evaluation that follows training')
 
     args = parser.parse_args()
+    # torchrun passes the local rank through the environment rather than --local_rank.
+    args.local_rank = int(os.environ.get('LOCAL_RANK', args.local_rank))
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg.ROOT_DIR = (Path(__file__).resolve().parent / '../').resolve()
@@ -61,8 +73,61 @@ def parse_config():
     return args, cfg
 
 
+ENCODER_PREFIXES = ('vfe.', 'backbone3d.', 'map_to_bev.', 'backbone2d.')
+
+
+def load_pretrained(model, filename, logger, fix_pretrained_weights=False, scope='all'):
+    """
+    Load matching weights from a checkpoint. Strips 'module.' (DDP) and 'lidar.' (CenterPointMM) prefixes so
+    a CenterPointSingle checkpoint, a CenterPointMM checkpoint, and the LiDAR branch of CenterPointMM all
+    load into one another. Raises if nothing matches, since a silent no-op load would invalidate a
+    pretraining comparison.
+    """
+    checkpoint = torch.load(filename, map_location='cpu')
+    disk_state = checkpoint.get('model_state', checkpoint)
+    own_state = model.state_dict()
+
+    def strip(key):
+        for prefix in ('module.', 'lidar.'):
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+        return key
+
+    loaded, skipped_shape = {}, []
+    for key, val in disk_state.items():
+        k = key if key in own_state else strip(key)
+        if k not in own_state:
+            continue
+        if scope == 'encoder' and not k.startswith(ENCODER_PREFIXES):
+            continue
+        if own_state[k].shape != val.shape:
+            skipped_shape.append(k)
+            continue
+        loaded[k] = val
+    if not loaded:
+        raise RuntimeError('No parameter of %s matches the model (checkpoint keys look like %s)'
+                           % (filename, list(disk_state)[:3]))
+    own_state.update(loaded)
+    model.load_state_dict(own_state)
+    if fix_pretrained_weights:
+        for name, param in model.named_parameters():
+            if name in loaded:
+                param.requires_grad = False
+    missing = [k for k in own_state if k not in loaded]
+    logger.info('==> Pretrained %s (scope=%s): loaded %d/%d tensors, %d shape mismatches, %d left at init'
+                % (filename, scope, len(loaded), len(own_state), len(skipped_shape), len(missing)))
+    for k in skipped_shape:
+        logger.info('    shape mismatch: %s' % k)
+    for k in missing:
+        logger.info('    left at init: %s' % k)
+
+
 def main():
     args, cfg = parse_config()
+    # TF32 matmuls/convs: large speedup for the fp32 parts on Ampere/Hopper at negligible accuracy cost.
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
     if args.launcher == 'none':
         dist_train = False
         total_gpus = 1
@@ -124,6 +189,14 @@ def main():
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
 
+    amp_dtype = {'none': None, 'fp16': torch.float16, 'bf16': torch.bfloat16}[args.amp]
+    if amp_dtype is not None:
+        assert hasattr(model, 'set_amp'), '--amp is only wired into models with set_amp (CenterPointSingle)'
+        model.set_amp(amp_dtype)
+    # bf16 has fp32's exponent range and needs no loss scaling; fp16 does.
+    scaler = torch.cuda.amp.GradScaler() if args.amp == 'fp16' else None
+    logger.info('Mixed precision: %s%s' % (args.amp, ' (with GradScaler)' if scaler is not None else ''))
+
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)
     # load checkpoint if it is possible
     
@@ -131,7 +204,8 @@ def main():
     last_epoch = -1
     
     if args.pretrained_model is not None:
-        load_params_from_file(model.lidar, filename=args.pretrained_model, to_cpu=dist, logger=logger, fix_pretrained_weights=args.fix_pretrained_weights)
+        load_pretrained(getattr(model, 'lidar', model), args.pretrained_model, logger,
+                        fix_pretrained_weights=args.fix_pretrained_weights, scope=args.pretrained_scope)
 
     if args.ckpt is not None:
         # it, start_epoch = load_params_with_optimizer(model.lidar, args.ckpt, to_cpu=dist, optimizer=optimizer, logger=logger)
@@ -157,6 +231,14 @@ def main():
     
     # last_epoch = 0
     model.train()  # before wrap to DistributedDataParallel to support fixed some parameters
+
+    if args.compile:
+        assert hasattr(model, 'compile_dense'), '--compile is only wired into models with compile_dense (CenterPointSingle)'
+        import torch._dynamo
+        # Box/ROI counts change between iterations; give dynamo room for a few shape variants.
+        torch._dynamo.config.cache_size_limit = 64
+        n = model.compile_dense(mode=args.compile_mode)
+        logger.info('torch.compile (%s) applied to %d dense submodules' % (args.compile_mode, n))
     
     if dist_train:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()], find_unused_parameters=args.find_unused_parameters)
@@ -189,12 +271,15 @@ def main():
         lr_warmup_scheduler=lr_warmup_scheduler,
         ckpt_save_interval=args.ckpt_save_interval,
         max_ckpt_save_num=args.max_ckpt_save_num,
-        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch
+        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
+        scaler=scaler
     )
 
     logger.info('**********************End training %s/%s(%s)**********************\n\n\n'
                 % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
+    if args.skip_final_eval:
+        return
     logger.info('**********************Start evaluation %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
     test_set, test_loader, sampler = build_dataloader(

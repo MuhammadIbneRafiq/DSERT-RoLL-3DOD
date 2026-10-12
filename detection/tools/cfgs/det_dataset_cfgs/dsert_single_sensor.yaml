@@ -1,0 +1,79 @@
+# Single point-cloud sensor on DSERT-RoLL: no cameras, no real radar.
+# Range, voxel size and augmentation match dsert_mm_lidar_radar_thermal_event.yaml so runs stay comparable.
+DATASET: 'DSERTSingleSensorDataset'
+DATA_PATH: '../data/dsert-roll'
+PROCESSED_DATA_TAG: 'processed_data'
+
+SENSOR:
+    NAME: ouster        # ouster | livox | radar. Points are transformed into the Livox frame, where boxes live.
+    # 'auto' = detect; the resolved values are printed at startup and by preflight_single_sensor.py.
+    PATH_KEY: auto      # key in info['sensor']; auto -> any key containing the sensor name, else swap FOLDER into livox_path
+    CALIB_NAME: auto    # key in info['calibration']; auto -> any key containing the sensor name
+    # FEATURE: intensity            # per-point field used as the 4th channel
+    # INTENSITY_TRANSFORM: log1p    # ouster default; none for livox and radar
+
+# Forward-facing range, as in the paper: the labels only cover the Livox field of view, so a 360-degree crop
+# would teach the model that unlabeled cars behind the vehicle are background.
+POINT_CLOUD_RANGE: [0, -76.8, -2, 76.8, 76.8, 4]
+
+DATA_SPLIT: {
+    'train': train,
+    'test': val
+}
+
+SAMPLED_INTERVAL: {
+    'train': 1,
+    'test': 1
+}
+
+SWEEP_COUNT: [0, 0]
+TTA: False
+USE_IMAGE: False
+
+DATA_AUGMENTOR:
+    DISABLE_AUG_LIST: ['placeholder', 'gt_sampling']
+    AUG_CONFIG_LIST:
+        - NAME: random_world_flip
+          ALONG_AXIS_LIST: ['x']
+          RETURN_NOISE_FLIP: True
+
+        - NAME: random_world_rotation
+          WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+          RETURN_NOISE_ROTATE: True
+
+        - NAME: random_world_scaling
+          WORLD_SCALE_RANGE: [0.95, 1.05]
+          RETURN_NOISE_SCALE: True
+
+        - NAME: random_world_translation
+          STD: 0.5
+          RETURN_NOISE_TRANSLATION: True
+
+POINT_FEATURE_ENCODING: {
+    encoding_type: absolute_coordinates_encoding,
+    used_feature_list: ['x', 'y', 'z', 'intensity'],
+    src_feature_list: ['x', 'y', 'z', 'intensity'],
+}
+
+# Required by DatasetTemplate; describes the placeholder radar point, which the model ignores.
+RADAR_POINT_FEATURE_ENCODING:
+  encoding_type: absolute_coordinates_encoding
+  src_feature_list:  ['x','y','z', 'doppler']
+  used_feature_list: ['x','y','z', 'doppler']
+
+DATA_PROCESSOR:
+    - NAME: mask_points_and_boxes_outside_range
+      REMOVE_OUTSIDE_BOXES: True
+      POINTS_KEY: points
+
+    - NAME: shuffle_points
+      SHUFFLE_ENABLED: {
+        'train': True,
+        'test': False
+      }
+      POINTS_KEY: points
+
+    # DynamicMeanVFE voxelizes on the GPU from raw points, so the CPU voxelization the fusion config runs in
+    # every dataloader worker is skipped; this step only fixes the voxel grid.
+    - NAME: transform_points_to_voxels_placeholder
+      VOXEL_SIZE: [0.2, 0.2, 0.15]
