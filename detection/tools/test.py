@@ -17,6 +17,7 @@ from al3d_utils.model_utils import load_params_from_file, load_params_with_optim
 from al3d_det.datasets import build_dataloader
 from al3d_det.models import build_network
 import eval_utils
+import wandb_utils
 
 
 def parse_config():
@@ -125,8 +126,11 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
     )
 
     if cfg.LOCAL_RANK == 0:
-        for key, val in tb_dict.items():
-            tb_log.add_scalar(key, val, cur_epoch_id)
+        # The DSERT evaluation returns nested dicts (overall / per_weather / per_light / ...); add_scalar
+        # only takes numbers, so log the flattened leaves, e.g. per_weather/Fog/<metric>.
+        for key, val in wandb_utils.flatten_scalars(tb_dict).items():
+            tb_log.add_scalar(key, val, int(float(cur_epoch_id)))
+        wandb_utils.log_eval(tb_dict, cur_epoch_id)
 
     # record this epoch which has been evaluated
     with open(ckpt_record_file, 'a') as f:

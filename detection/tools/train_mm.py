@@ -19,6 +19,7 @@ from al3d_utils.train_utils import train_model
 from al3d_det.datasets import build_dataloader
 from al3d_det.models import build_network, model_fn_decorator
 from test import repeat_eval_ckpt
+import wandb_utils
 
 import pdb
 
@@ -55,6 +56,9 @@ def parse_config():
                         help='torch.compile mode: default | reduce-overhead | max-autotune')
     parser.add_argument('--pretrained_scope', choices=['all', 'encoder'], default='all',
                         help="with --pretrained_model: 'encoder' copies only the 3D/BEV backbones, heads start fresh")
+    parser.add_argument('--wandb_project', type=str, default=None,
+                        help='log to this Weights & Biases project (off when not given)')
+    parser.add_argument('--wandb_entity', type=str, default=None, help='wandb user or team (default: your account)')
     parser.add_argument('--skip_final_eval', action='store_true', default=False,
                         help='do not run the evaluation that follows training')
 
@@ -169,6 +173,8 @@ def main():
         os.system('cp %s %s' % (args.cfg_file, output_dir))
 
     tb_log = SummaryWriter(log_dir=str(output_dir / 'tensorboard')) if cfg.LOCAL_RANK == 0 else None
+    if cfg.LOCAL_RANK == 0 and wandb_utils.init(args, cfg, output_dir, logger) is not None:
+        tb_log = wandb_utils.MirroredWriter(tb_log)
 
     # -----------------------create dataloader & network & optimizer---------------------------
     train_set, train_loader, train_sampler = build_dataloader(
@@ -279,6 +285,7 @@ def main():
                 % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
     if args.skip_final_eval:
+        wandb_utils.finish()
         return
     logger.info('**********************Start evaluation %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
@@ -299,6 +306,7 @@ def main():
     )
     logger.info('**********************End evaluation %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    wandb_utils.finish()
 
 
 if __name__ == '__main__':

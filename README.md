@@ -244,6 +244,10 @@ Each job first runs [`preflight_single_sensor.py`](detection/tools/preflight_sin
 checks the sensor's file key and calibration and whether its points land inside the labelled boxes. It
 also writes bird's-eye-view plots to `detection/output/preflight/<tag>/`.
 
+Training and evaluation metrics also go to Weights & Biases (`--wandb_project`, set by the job script)
+after a one-time `wandb login` on a login node. Runs that could not reach wandb are logged offline and
+uploaded with `detection/tools/scripts/snellius/wandb_sync.sh`.
+
 ---
 
 ## Evaluation

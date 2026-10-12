@@ -15,7 +15,10 @@
 #   sbatch --export=ALL,DATA_ROOT=...,SENSOR=radar,TAG=radar_ft_from_ouster,PRETRAINED=<ckpt.pth> ...
 #   sbatch --export=ALL,DATA_ROOT=...,SENSOR=radar,TAG=radar_scratch ...
 #
-# Re-submitting with the same TAG resumes from the newest checkpoint in that run's ckpt/ folder.
+# Re-submitting with the same TAG resumes from the newest checkpoint in that run's ckpt/ folder, and continues
+# the same wandb run. wandb logs to project WANDB_PROJECT (default dsert-single-sensor; set it empty to turn off)
+# after a one-time `wandb login` on a login node. If the node cannot reach wandb it logs offline; upload with
+# detection/tools/scripts/snellius/wandb_sync.sh from a login node.
 # One GPU matches the config's global batch of 16 at LR 0.001; with more GPUs, rescale LR in the config.
 #
 #SBATCH --job-name=dsert-single
@@ -50,6 +53,7 @@ SMOKE="${SMOKE:-0}"                              # 1 = tiny subset, 2 epochs: ch
 PREFLIGHT="${PREFLIGHT:-1}"                      # 1 = run preflight_single_sensor.py first and stop if it fails
 SKIP_EVAL="${SKIP_EVAL:-0}"                      # 1 = skip the Waymo-AP evaluation after training
 STAGE="${STAGE:-0}"                              # 1 = copy labels + this sensor's frames to node-local $TMPDIR first
+WANDB_PROJECT="${WANDB_PROJECT-dsert-single-sensor}"   # Weights & Biases project; WANDB_PROJECT= (empty) turns it off
 EXTRA_ARGS="${EXTRA_ARGS:-}"                     # anything else for train_mm.py (before --set)
 
 # ---- environment ------------------------------------------------------------------------------------------
@@ -66,6 +70,13 @@ export OMP_NUM_THREADS=2
 export PYTHONUNBUFFERED=1
 export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-$HOME/.cache/torchinductor}"   # reuse compiled kernels across jobs
 export NCCL_ASYNC_ERROR_HANDLING=1
+
+# wandb reads its API key from ~/.netrc (written by `wandb login` on a login node; home is shared with
+# compute nodes) or from WANDB_API_KEY. Without either, log offline rather than failing the job.
+if [ -n "$WANDB_PROJECT" ] && [ -z "${WANDB_API_KEY:-}" ] && ! grep -qs "api.wandb.ai" "$HOME/.netrc"; then
+    echo "WARNING: wandb is not logged in for $USER. Run 'wandb login' once on a login node. Logging offline for now." >&2
+    export WANDB_MODE=offline
+fi
 
 cd "$REPO_ROOT/detection/tools"
 [ -f train_mm.py ] || { echo "REPO_ROOT=$REPO_ROOT does not look like the repo root" >&2; exit 1; }
@@ -107,6 +118,7 @@ TRAIN_ARGS=(--launcher pytorch --cfg_file "$CFG" --extra_tag "$TAG" --workers "$
 [ -n "$BATCH_PER_GPU" ] && TRAIN_ARGS+=(--batch_size "$(( BATCH_PER_GPU * NGPUS ))")
 [ -n "$PRETRAINED" ] && TRAIN_ARGS+=(--pretrained_model "$PRETRAINED" --pretrained_scope "$PRETRAINED_SCOPE")
 [ "$SKIP_EVAL" = "1" ] && TRAIN_ARGS+=(--skip_final_eval)
+[ -n "$WANDB_PROJECT" ] && TRAIN_ARGS+=(--wandb_project "$WANDB_PROJECT")
 
 # ---- preflight (CPU): sensor key, calibration, point/box alignment -------------------------------------
 if [ "$PREFLIGHT" = "1" ]; then
@@ -120,4 +132,9 @@ echo "==> torchrun train_mm.py ${TRAIN_ARGS[*]} ${EXTRA_ARGS} --set ${SETS[*]}"
 # shellcheck disable=SC2086
 torchrun --standalone --nproc_per_node="$NGPUS" train_mm.py "${TRAIN_ARGS[@]}" $EXTRA_ARGS --set "${SETS[@]}"
 
-echo "==> done. Outputs: $REPO_ROOT/detection/output/$(dirname "${CFG#cfgs/}")/$(basename "$CFG" .yaml)/$TAG"
+OUT_DIR="$REPO_ROOT/detection/output/$(dirname "${CFG#cfgs/}")/$(basename "$CFG" .yaml)/$TAG"
+echo "==> done. Outputs: $OUT_DIR"
+if compgen -G "$OUT_DIR/wandb/offline-run-*" > /dev/null; then
+    echo "==> wandb logged offline. To upload, on a login node run:"
+    echo "    bash $REPO_ROOT/detection/tools/scripts/snellius/wandb_sync.sh $OUT_DIR"
+fi

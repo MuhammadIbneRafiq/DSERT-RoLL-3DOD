@@ -45,7 +45,7 @@ pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorc
 pip install "numpy==1.23.5"
 pip install spconv-cu120
 pip install torch_scatter -f https://data.pyg.org/whl/torch-2.4.0+cu121.html
-pip install numba tensorboardX easydict pyyaml scikit-image tqdm pandas tabulate kornia scipy matplotlib \
+pip install numba tensorboardX wandb easydict pyyaml scikit-image tqdm pandas tabulate kornia scipy matplotlib \
     "opencv-python-headless<4.10" "numpy==1.23.5"
 
 # Waymo AP for the evaluation at the end of training. If this fails, train with SKIP_EVAL=1 and evaluate elsewhere.
@@ -76,3 +76,13 @@ except ImportError:
     print('waymo eval: NOT available (use SKIP_EVAL=1)')
 print('Install OK')
 EOF
+
+# --- wandb login (one time, here on the login node) ---------------------------------------------------------
+# The key lands in ~/.netrc, which compute nodes share, so jobs log online without further setup.
+if [ -n "${WANDB_API_KEY:-}" ] || grep -qs "api.wandb.ai" "$HOME/.netrc"; then
+    echo "wandb: logged in"
+else
+    echo ""
+    echo "wandb: not logged in yet. Copy your API key from https://wandb.ai/authorize, then run:"
+    echo "    source $CONDA_DIR/bin/activate $ENV_DIR && wandb login"
+fi
