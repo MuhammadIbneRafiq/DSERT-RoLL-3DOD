@@ -27,6 +27,15 @@ def write_version_to_file(version, target_file):
         print('__version__ = "%s"' % version, file=f)
 
 
+def build_dcn():
+    # The DCN op still uses THC, which PyTorch removed in 1.11, and only the camera branch needs it.
+    import torch
+    if os.environ.get('AL3D_BUILD_DCN', '') == '1':
+        return True
+    major, minor = (int(x) for x in torch.__version__.split('.')[:2])
+    return (major, minor) < (1, 11)
+
+
 if __name__ == '__main__':
     version = '0.1.0+%s' % get_git_commit_number()
     write_version_to_file(version, 'al3d_utils/version.py')
@@ -110,6 +119,7 @@ if __name__ == '__main__':
                     'src/sampling_gpu.cu',
                 ],
             ),
+        ] + ([
             make_cuda_ext(
                 name='deform_conv_cuda',
                 module='al3d_utils.ops.dcn',
@@ -118,6 +128,6 @@ if __name__ == '__main__':
                     'src/deform_conv_cuda_kernel.cu',
 
                 ],
-            ),
-        ],
+            )
+        ] if build_dcn() else []),
     )

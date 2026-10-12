@@ -2,20 +2,37 @@ from collections import namedtuple
 
 import numpy as np
 import torch
-import kornia
+try:
+    import kornia
+except ImportError:
+    kornia = None
 from .centerpoint_waymo import CenterPointPC
-from .centerpoint_MM_waymo import CenterPointMM
+from .centerpoint_single import CenterPointSingle
 from .anchor_kitti import ANCHORKITTI
-from .anchor_MM_kitti import ANCHORMMKITTI
 __all__ = {
     'CenterPointPC': CenterPointPC,
-    'CenterPointMM': CenterPointMM,
+    'CenterPointSingle': CenterPointSingle,
     'ANCHORKITTI': ANCHORKITTI,
-    'ANCHORMMKITTI': ANCHORMMKITTI,
 }
+
+# The camera models need mmdet/mmcv and the compiled deformable-attention op. A LiDAR-only
+# environment does not install those, so they are registered only when importable.
+_unavailable = {}
+try:
+    from .centerpoint_MM_waymo import CenterPointMM
+    __all__['CenterPointMM'] = CenterPointMM
+except ImportError as e:
+    _unavailable['CenterPointMM'] = e
+try:
+    from .anchor_MM_kitti import ANCHORMMKITTI
+    __all__['ANCHORMMKITTI'] = ANCHORMMKITTI
+except ImportError as e:
+    _unavailable['ANCHORMMKITTI'] = e
 
 
 def build_network(model_cfg, num_class, dataset):
+    if model_cfg.NAME in _unavailable:
+        raise ImportError('%s could not be imported: %s' % (model_cfg.NAME, _unavailable[model_cfg.NAME]))
     model = __all__[model_cfg.NAME](
         model_cfg=model_cfg,
         num_class=num_class,

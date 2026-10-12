@@ -2,9 +2,15 @@ from functools import partial
 
 import numpy as np
 import torch
-from skimage import transform
-import cumm.tensorview as tv
-from spconv.utils import Point2VoxelCPU3d as VoxelGenerator
+try:
+    from skimage import transform
+except ImportError:  # only needed by downsample_depth_map
+    transform = None
+try:
+    import cumm.tensorview as tv
+    from spconv.utils import Point2VoxelCPU3d as VoxelGenerator
+except ImportError:  # only needed by the CPU voxelization steps, not by transform_points_to_voxels_placeholder
+    tv = VoxelGenerator = None
 
 from al3d_utils import box_utils, common_utils
 

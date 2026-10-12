@@ -6,11 +6,13 @@ from al3d_utils import common_utils
 
 from .dataset import DatasetTemplate
 from .dsert.dsert_dataset import DSERTTrainingDataset, DSERTInferenceDataset
+from .dsert.dsert_single_sensor_dataset import DSERTSingleSensorDataset
 
 __all__ = {
     'DatasetTemplate': DatasetTemplate,
     'DSERTTrainingDataset': DSERTTrainingDataset,
     'DSERTInferenceDataset': DSERTInferenceDataset,
+    'DSERTSingleSensorDataset': DSERTSingleSensorDataset,
 }
 
 
@@ -69,7 +71,9 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
     dataloader = DataLoader(
         new_dataset, batch_size=batch_size, pin_memory=True, num_workers=workers,
         shuffle=(sampler is None) and training, collate_fn=dataset.collate_batch,
-        drop_last=False, sampler=sampler, timeout=0
+        drop_last=False, sampler=sampler, timeout=0,
+        # Workers are started with 'spawn' (see init_dist_pytorch); keep them alive across epochs.
+        persistent_workers=workers > 0
     )
 
     return dataset, dataloader, sampler

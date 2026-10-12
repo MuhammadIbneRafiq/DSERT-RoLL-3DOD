@@ -1,6 +1,6 @@
 # This file is modified from https://github.com/traveller59/second.pytorch
 
-from collections import Iterable
+from collections.abc import Iterable  # `from collections import Iterable` was removed in Python 3.10
 
 import torch
 from torch import nn

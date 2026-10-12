@@ -1,6 +1,10 @@
 from .LoGoHead import LoGoHead
-from .LoGoHead_kitti import LoGoHeadKITTI
 __all__ = {
     'LoGoHead': LoGoHead,
-    'LoGoHeadKITTI': LoGoHeadKITTI,
 }
+try:
+    # Imports the camera fusion modules at load time, so it is optional in LiDAR-only environments.
+    from .LoGoHead_kitti import LoGoHeadKITTI
+    __all__['LoGoHeadKITTI'] = LoGoHeadKITTI
+except ImportError:
+    pass

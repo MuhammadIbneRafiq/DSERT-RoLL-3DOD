@@ -221,6 +221,29 @@ bash scripts/dist_train_mm.sh 0,1 2 \
 
 Outputs land under `detection/output/det_model_cfgs/dsert/ours/<extra_tag>/`.
 
+### Single-sensor training (LiDAR or radar only)
+
+[`lidar_only.yaml`](detection/tools/cfgs/det_model_cfgs/dsert/lidar_only.yaml) is the LiDAR path of
+the fusion model (VFE → sparse 3D backbone → BEV → CenterHead → LoGoHead) with no radar branch and no
+camera fusion. `DATA_CONFIG.SENSOR.NAME` picks the input (`ouster`, `livox` or `radar`). Points are
+moved into the Livox frame, where the labels live, so one checkpoint loads into a run on any of the
+sensors with `--pretrained_model`.
+
+It runs on a modern stack (Python 3.10, PyTorch 2.4, CUDA 12) without mmcv/mmdet, with mixed
+precision (`--amp fp16|bf16`) and `torch.compile` on the dense layers (`--compile`). On Snellius:
+
+```bash
+bash detection/tools/scripts/snellius/setup_env.sh                       # once, on a login node
+sbatch --time=01:00:00 --export=ALL,DATA_ROOT=/path/to/dsert_roll,SMOKE=1 \
+    detection/tools/scripts/snellius/train_single_sensor.sbatch          # ~1% of data, end to end
+sbatch --time=12:00:00 --export=ALL,DATA_ROOT=/path/to/dsert_roll,TAG=ouster_pretrain,STAGE=1 \
+    detection/tools/scripts/snellius/train_single_sensor.sbatch          # full run, 1 x H100
+```
+
+Each job first runs [`preflight_single_sensor.py`](detection/tools/preflight_single_sensor.py), which
+checks the sensor's file key and calibration and whether its points land inside the labelled boxes. It
+also writes bird's-eye-view plots to `detection/output/preflight/<tag>/`.
+
 ---
 
 ## Evaluation

@@ -19,6 +19,11 @@ except ImportError:
 
 
 tf.get_logger().setLevel('INFO')
+# The metric runs on CPU. Hide the GPUs so TensorFlow does not grab memory PyTorch is using in the same process.
+try:
+    tf.config.set_visible_devices([], 'GPU')
+except (RuntimeError, ValueError):
+    pass
 
 DEFAULT_IOU_THRESH = {
     'unknown': 0.0,      # Waymo config 상 첫 항목(unknown) 보통 0.0 유지
