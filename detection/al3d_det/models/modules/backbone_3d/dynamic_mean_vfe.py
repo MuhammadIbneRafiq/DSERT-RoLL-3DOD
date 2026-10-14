@@ -3,8 +3,18 @@ import torch.nn as nn
 try:
     import torch_scatter
 except Exception as e:
-    # Incase someone doesn't want to use dynamic pillar vfe and hasn't installed torch_scatter
-    pass
+    # torch_scatter is optional: _scatter_mean below computes the same per-voxel mean in plain PyTorch.
+    torch_scatter = None
+
+
+def _scatter_mean(src, index):
+    """Mean of src rows grouped by index (0..max(index)); equivalent to torch_scatter.scatter_mean(src, index, dim=0)."""
+    if torch_scatter is not None:
+        return torch_scatter.scatter_mean(src, index, dim=0)
+    num = int(index.max().item()) + 1 if index.numel() else 0
+    total = src.new_zeros((num, src.shape[1])).index_add_(0, index, src)
+    count = torch.bincount(index, minlength=num).clamp_(min=1).unsqueeze(1).to(src.dtype)
+    return total / count
 
 
 class DynamicMeanVFE(nn.Module):
@@ -57,7 +67,7 @@ class DynamicMeanVFE(nn.Module):
         
         unq_coords, unq_inv, unq_cnt = torch.unique(merge_coords, return_inverse=True, return_counts=True)
 
-        points_mean = torch_scatter.scatter_mean(points_data, unq_inv, dim=0)
+        points_mean = _scatter_mean(points_data, unq_inv)
         
         unq_coords = unq_coords.int()
         voxel_coords = torch.stack((torch.div(unq_coords, self.scale_xyz, rounding_mode='trunc'),
@@ -124,7 +134,7 @@ class DynamicMeanVFERadar(nn.Module):
         
         unq_coords, unq_inv, unq_cnt = torch.unique(merge_coords, return_inverse=True, return_counts=True)
 
-        points_mean = torch_scatter.scatter_mean(points_data, unq_inv, dim=0)
+        points_mean = _scatter_mean(points_data, unq_inv)
         
         unq_coords = unq_coords.int()
         voxel_coords = torch.stack((torch.div(unq_coords, self.scale_xyz, rounding_mode='trunc'),

@@ -245,6 +245,10 @@ Each job first runs [`preflight_single_sensor.py`](detection/tools/preflight_sin
 checks the sensor's file key and calibration and whether its points land inside the labelled boxes. It
 also writes bird's-eye-view plots to `detection/output/preflight/<tag>/`.
 
+For analysis, `detection/tools/analysis/` has encoder feature extraction, t-SNE plus probe metrics and recall
+breakdowns (`plot_tsne.py`, CPU), and bird's-eye-view Grad-CAM (`gradcam_bev.py`). `make_kaggle_bundle.sh` packs
+checkpoints and a validation subset for the Kaggle notebook `analysis/kaggle_analysis.ipynb`.
+
 Training and evaluation metrics also go to Weights & Biases (`--wandb_project`, set by the job script)
 after a one-time `wandb login` on a login node. Runs that could not reach wandb are logged offline and
 uploaded with `detection/tools/scripts/snellius/wandb_sync.sh`.

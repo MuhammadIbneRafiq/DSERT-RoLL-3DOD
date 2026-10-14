@@ -10,7 +10,7 @@
 #   #    (a time limit <= 1 hour puts it on the nodes reserved for short jobs, so it starts sooner)
 #   sbatch --time=01:00:00 --export=ALL,DATA_ROOT=/path/to/dsert_roll,SMOKE=1 detection/tools/scripts/snellius/train_single_sensor.sbatch
 #
-#   # 2) full Ouster pretraining run (5-day limit by default; you are billed only for the time actually used)
+#   # 2) full pretraining run (24 h limit by default; a full 20-epoch run takes roughly 7-9 h on one H100)
 #   sbatch --export=ALL,DATA_ROOT=/path/to/dsert_roll,TAG=ouster_pretrain detection/tools/scripts/snellius/train_single_sensor.sbatch
 #
 #   # 3) later: radar fine-tuning from the Ouster checkpoint, and the radar-from-scratch baseline
@@ -29,6 +29,10 @@
 # Single GPU only: the config's batch 16 at LR 0.001 is the paper's global batch, and the comparison between
 # runs relies on every run using the same setup.
 #
+# Keep --time realistic: Snellius reserves (time limit x 192 SBU/h) from the budget when a job starts and cancels it
+# ("CANCELLED by 0", AdminComment reason=budget) if running jobs' reservations would exceed the budget. A 5-day limit
+# reserves 23,040 SBU even if the run takes 8 h. If a run ever needs longer, resubmit with the same TAG to resume.
+#
 #SBATCH --job-name=dsert-single
 #SBATCH --partition=gpu_h100
 #SBATCH --nodes=1
@@ -36,7 +40,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --constraint=scratch-node
-#SBATCH --time=5-00:00:00
+#SBATCH --time=1-00:00:00
 #SBATCH --output=slurm-%x-%j.out
 
 set -euo pipefail
