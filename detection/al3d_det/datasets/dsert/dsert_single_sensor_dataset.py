@@ -127,6 +127,9 @@ class DSERTSingleSensorDataset(DSERTTrainingDataset):
     def load_sensor_points(self, path):
         """Returns (N, 4) float32 points [x, y, z, feature] in the sensor's own frame."""
         raw = np.load(path)
+        if raw.size == 0:
+            # A frame with no returns (common for radar) is saved as an empty array, sometimes without field names.
+            return np.zeros((0, 4), dtype=np.float32)
         if raw.dtype.names is not None:
             if self._feature_name is None:
                 wanted = [self.sensor_opts['FEATURE']] + FEATURE_FALLBACKS

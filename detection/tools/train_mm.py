@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 
 from al3d_utils import common_utils
 from al3d_utils.config_utils import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
-from al3d_utils.model_utils import load_params_from_file, load_params_with_optimizer
+from al3d_utils.model_utils import load_checkpoint, load_params_from_file, load_params_with_optimizer
 from al3d_utils.optimize_utils import build_optimizer, build_scheduler
 from al3d_utils.train_utils import train_model
 
@@ -80,6 +80,13 @@ def parse_config():
 ENCODER_PREFIXES = ('vfe.', 'backbone3d.', 'map_to_bev.', 'backbone2d.')
 
 
+def make_grad_scaler():
+    # torch.amp.GradScaler('cuda') replaces the deprecated torch.cuda.amp.GradScaler (PyTorch >= 2.3).
+    if hasattr(torch.amp, 'GradScaler'):
+        return torch.amp.GradScaler('cuda')
+    return torch.cuda.amp.GradScaler()
+
+
 def load_pretrained(model, filename, logger, fix_pretrained_weights=False, scope='all'):
     """
     Load matching weights from a checkpoint. Strips 'module.' (DDP) and 'lidar.' (CenterPointMM) prefixes so
@@ -87,7 +94,7 @@ def load_pretrained(model, filename, logger, fix_pretrained_weights=False, scope
     load into one another. Raises if nothing matches, since a silent no-op load would invalidate a
     pretraining comparison.
     """
-    checkpoint = torch.load(filename, map_location='cpu')
+    checkpoint = load_checkpoint(filename, map_location='cpu')
     disk_state = checkpoint.get('model_state', checkpoint)
     own_state = model.state_dict()
 
@@ -200,7 +207,7 @@ def main():
         assert hasattr(model, 'set_amp'), '--amp is only wired into models with set_amp (CenterPointSingle)'
         model.set_amp(amp_dtype)
     # bf16 has fp32's exponent range and needs no loss scaling; fp16 does.
-    scaler = torch.cuda.amp.GradScaler() if args.amp == 'fp16' else None
+    scaler = make_grad_scaler() if args.amp == 'fp16' else None
     logger.info('Mixed precision: %s%s' % (args.amp, ' (with GradScaler)' if scaler is not None else ''))
 
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)

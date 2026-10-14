@@ -156,8 +156,13 @@ def main():
                     % (np.median(n_pts), np.min(n_pts), np.median(n_pts_in_range), np.min(n_pts_in_range)))
         logger.info('4th channel after transform: min %.3f  p1 %.3f  p50 %.3f  p99 %.3f  max %.3f'
                     % (f.min(), *np.percentile(f, [1, 50, 99]), f.max()))
-        if np.min(n_pts_in_range) == 0:
-            failures.append('some frames have no points inside POINT_CLOUD_RANGE')
+        n_empty = int(np.sum(np.array(n_pts_in_range) == 0))
+        if n_empty > len(n_pts_in_range) // 2:
+            # Most frames empty points to a wrong path, transform or range, not to a sparse sensor.
+            failures.append('%d/%d sampled frames have no points inside POINT_CLOUD_RANGE' % (n_empty, len(n_pts_in_range)))
+        elif n_empty:
+            logger.warning('%d/%d sampled frames have no points inside POINT_CLOUD_RANGE (normal for radar, which '
+                           'sometimes records no returns)' % (n_empty, len(n_pts_in_range)))
         if np.abs(f).max() > 6e4:
             logger.warning('4th channel exceeds the fp16 range; use INTENSITY_TRANSFORM: log1p or --amp bf16')
 

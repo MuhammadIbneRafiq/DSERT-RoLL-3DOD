@@ -33,7 +33,7 @@ class BallQuery(Function):
 
         B = xyz_batch_cnt.shape[0]
         M = new_xyz.shape[0]
-        idx = torch.cuda.IntTensor(M, nsample).zero_()
+        idx = torch.zeros((M, nsample), dtype=torch.int32, device=xyz.device)
 
         pointnet2.ball_query_wrapper(B, M, radius, nsample, new_xyz, new_xyz_batch_cnt, xyz, xyz_batch_cnt, idx)
         empty_ball_mask = (idx[:, 0] == -1)
@@ -77,7 +77,7 @@ class BallQueryCount(Function):
 
         B = xyz_batch_cnt.shape[0]
         M = new_xyz.shape[0]
-        idx = torch.cuda.IntTensor(M, nsample).zero_() - 1
+        idx = torch.full((M, nsample), -1, dtype=torch.int32, device=xyz.device)
 
         pointnet2.ball_query_count_wrapper(B, M, radius, nsample, new_xyz, new_xyz_batch_cnt, xyz, xyz_batch_cnt, idx)
         empty_ball_mask = (idx[:, 0] == -1)
@@ -121,7 +121,7 @@ class GroupingOperation(Function):
         N, C = features.size()
         B = idx_batch_cnt.shape[0]
         # print(M, C, nsample)
-        output = torch.cuda.FloatTensor(M, C, nsample)
+        output = torch.empty((M, C, nsample), dtype=torch.float32, device=features.device)
         # print(M, C, nsample, '*'*10)
         pointnet2.group_points_wrapper(B, M, C, nsample, features, features_batch_cnt, idx, idx_batch_cnt, output)
         # print(M, C, nsample, '%'*10)
@@ -140,7 +140,7 @@ class GroupingOperation(Function):
         B, N, idx, features_batch_cnt, idx_batch_cnt = ctx.for_backwards
 
         M, C, nsample = grad_out.size()
-        grad_features = Variable(torch.cuda.FloatTensor(N, C).zero_())
+        grad_features = torch.zeros((N, C), dtype=torch.float32, device=grad_out.device)
 
         grad_out_data = grad_out.data.contiguous()
         pointnet2.group_points_grad_wrapper(B, M, C, N, nsample, grad_out_data, idx,
@@ -232,8 +232,8 @@ class FurthestPointSampling(Function):
         assert xyz.is_contiguous()
 
         B, N, _ = xyz.size()
-        output = torch.cuda.IntTensor(B, npoint)
-        temp = torch.cuda.FloatTensor(B, N).fill_(1e10)
+        output = torch.empty((B, npoint), dtype=torch.int32, device=xyz.device)
+        temp = torch.full((B, N), 1e10, dtype=torch.float32, device=xyz.device)
 
         pointnet2.furthest_point_sampling_wrapper(B, N, npoint, xyz, temp, output)
         return output
@@ -346,8 +346,8 @@ class StackFarthestPointSampling(Function):
             npoint = torch.tensor(npoint, device=xyz.device).int()
 
         N, _ = xyz.size()
-        temp = torch.cuda.FloatTensor(N).fill_(1e10)
-        output = torch.cuda.IntTensor(npoint.sum().item())
+        temp = torch.full((N,), 1e10, dtype=torch.float32, device=xyz.device)
+        output = torch.empty((int(npoint.sum().item()),), dtype=torch.int32, device=xyz.device)
 
         pointnet2.stack_farthest_point_sampling_wrapper(xyz, temp, xyz_batch_cnt, output, npoint)
         return output

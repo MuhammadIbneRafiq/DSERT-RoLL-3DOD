@@ -79,6 +79,10 @@ WORKERS="${WORKERS:-$(( CPUS - 2 ))}"            # dataloader workers; leave 2 c
 export OMP_NUM_THREADS=2
 export PYTHONUNBUFFERED=1
 export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-$HOME/.cache/torchinductor}"   # reuse compiled kernels across jobs
+# spconv 2.3 calls the deprecated torch.cuda.amp.custom_fwd/bwd inside its own package (harmless, but printed by every
+# dataloader worker). Silence exactly that message; inherited by all processes of the job. TF: hide C++ info logs.
+export PYTHONWARNINGS='ignore:`torch.cuda.amp.custom_:FutureWarning'
+export TF_CPP_MIN_LOG_LEVEL=2
 
 # wandb reads its API key from ~/.netrc (written by `wandb login` on a login node; home is shared with
 # compute nodes) or from WANDB_API_KEY. Without either, log offline rather than failing the job.

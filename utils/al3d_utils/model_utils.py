@@ -5,6 +5,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def load_checkpoint(filename, map_location=None):
+    """torch.load for this repo's own checkpoints, which also hold optimizer state and metadata.
+    PyTorch >= 2.4 warns unless weights_only is given; older versions do not accept the argument."""
+    try:
+        return torch.load(filename, map_location=map_location, weights_only=False)
+    except TypeError:
+        return torch.load(filename, map_location=map_location)
+
+
 # ============================== #
 # === Load Network Params ==== #
 # ============================== #
@@ -18,7 +27,7 @@ def load_params_from_file(model, filename, logger, to_cpu=False,fix_pretrained_w
         '==> Loading parameters from checkpoint %s to %s' %
         (filename, 'CPU' if to_cpu else 'GPU'))
     loc_type = torch.device('cpu') if to_cpu else None
-    checkpoint = torch.load(filename, map_location=loc_type)
+    checkpoint = load_checkpoint(filename, map_location=loc_type)
     model_state_disk = checkpoint['model_state']
 
     if 'version' in checkpoint:
@@ -62,7 +71,7 @@ def load_params_with_optimizer(
         '==> Loading parameters from checkpoint %s to %s' %
         (filename, 'CPU' if to_cpu else 'GPU'))
     loc_type = torch.device('cpu') if to_cpu else None
-    checkpoint = torch.load(filename, map_location=loc_type)
+    checkpoint = load_checkpoint(filename, map_location=loc_type)
     epoch = checkpoint.get('epoch', -1)
     it = checkpoint.get('it', 0.0)
     # import pdb; pdb.set_trace()
@@ -80,8 +89,7 @@ def load_params_with_optimizer(
             src_file, ext = filename[:-4], filename[-3:]
             optimizer_filename = '%s_optim.%s' % (src_file, ext)
             if os.path.exists(optimizer_filename):
-                optimizer_ckpt = torch.load(
-                    optimizer_filename, map_location=loc_type)
+                optimizer_ckpt = load_checkpoint(optimizer_filename, map_location=loc_type)
                 optimizer.load_state_dict(
                     optimizer_ckpt['optimizer_state'])
 

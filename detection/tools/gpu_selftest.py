@@ -80,7 +80,9 @@ def main():
     model.set_amp(amp_dtype)
     if args.compile:
         print('compiled %d dense submodules' % model.compile_dense())
-    scaler = torch.cuda.amp.GradScaler() if args.amp == 'fp16' else None
+    scaler = None
+    if args.amp == 'fp16':
+        scaler = torch.amp.GradScaler('cuda') if hasattr(torch.amp, 'GradScaler') else torch.cuda.amp.GradScaler()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     rng = np.random.default_rng(0)
 

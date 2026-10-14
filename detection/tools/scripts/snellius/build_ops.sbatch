@@ -55,6 +55,8 @@ EOF
 
 echo "==> GPU self-test: training steps with fp16 AMP + torch.compile, then inference, on random points"
 export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-$HOME/.cache/torchinductor}"
+export PYTHONWARNINGS='ignore:`torch.cuda.amp.custom_:FutureWarning'   # spconv's own deprecated calls
+export TF_CPP_MIN_LOG_LEVEL=2
 cd "$REPO_ROOT/detection/tools"
 python gpu_selftest.py --cfg_file cfgs/det_model_cfgs/dsert/lidar_only.yaml --amp fp16 --compile
 
