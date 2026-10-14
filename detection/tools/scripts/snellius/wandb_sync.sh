@@ -9,15 +9,14 @@
 # Safe to repeat: wandb skips data it has already uploaded.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-ENV_DIR="${ENV_DIR:-$HOME/envs/dsert-lidar}"
-CONDA_DIR="${CONDA_DIR:-$HOME/miniforge3}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 SEARCH_DIR="${1:-$REPO_ROOT/detection/output}"
-
 # shellcheck disable=SC1091
-source "$CONDA_DIR/bin/activate" "$ENV_DIR"
+source "$SCRIPT_DIR/snellius_env.sh"
+activate_env
 
-if [ -z "${WANDB_API_KEY:-}" ] && ! grep -qs "api.wandb.ai" "$HOME/.netrc"; then
+if ! wandb_logged_in; then
     echo "Not logged in to wandb. Run 'wandb login' first (key: https://wandb.ai/authorize)." >&2
     exit 1
 fi
