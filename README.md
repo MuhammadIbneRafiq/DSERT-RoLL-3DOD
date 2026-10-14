@@ -233,11 +233,12 @@ It runs on a modern stack (Python 3.10, PyTorch 2.4, CUDA 12) without mmcv/mmdet
 precision (`--amp fp16|bf16`) and `torch.compile` on the dense layers (`--compile`). On Snellius:
 
 ```bash
-bash detection/tools/scripts/snellius/setup_env.sh                       # once, on a login node
+bash detection/tools/scripts/snellius/setup_env.sh                       # once, login node: downloads
+sbatch detection/tools/scripts/snellius/build_ops.sbatch                 # once, 1 x H100: compile + GPU self-test
 sbatch --time=01:00:00 --export=ALL,DATA_ROOT=/path/to/dsert_roll,SMOKE=1 \
     detection/tools/scripts/snellius/train_single_sensor.sbatch          # ~1% of data, end to end
-sbatch --time=12:00:00 --export=ALL,DATA_ROOT=/path/to/dsert_roll,TAG=ouster_pretrain,STAGE=1 \
-    detection/tools/scripts/snellius/train_single_sensor.sbatch          # full run, 1 x H100
+sbatch --export=ALL,DATA_ROOT=/path/to/dsert_roll,TAG=ouster_pretrain \
+    detection/tools/scripts/snellius/train_single_sensor.sbatch          # full run, 1 x H100, 5-day limit
 ```
 
 Each job first runs [`preflight_single_sensor.py`](detection/tools/preflight_single_sensor.py), which
