@@ -141,7 +141,7 @@ class WaymoDetectionMetricsEstimator(tf.test.TestCase):
 
         frame_id = np.concatenate(frame_id).reshape(-1).astype(np.int64)
         boxes3d = np.concatenate(boxes3d, axis=0)
-        obj_type = np.array(obj_type).reshape(-1)
+        obj_type = np.array(obj_type, dtype=np.int64).reshape(-1)  # explicit dtype: an empty list would become float
         score = np.concatenate(score).reshape(-1)
         overlap_nlz = np.concatenate(overlap_nlz).reshape(-1)
         difficulty = np.concatenate(difficulty).reshape(-1).astype(np.int8)
@@ -347,7 +347,8 @@ class WaymoDetectionMetricsEstimator(tf.test.TestCase):
         print('Number: (pd, %d) VS. (gt, %d)' % (len(pd_boxes3d), len(gt_boxes3d)))
         print('Level 1: %d, Level2: %d)' % ((gt_difficulty == 1).sum(), (gt_difficulty == 2).sum()))
 
-        if pd_score.max() > 1:
+        # An early or weak model can produce no boxes at all; the metric then simply reports AP 0.
+        if pd_score.size > 0 and pd_score.max() > 1:
             # assert pd_score.max() <= 1.0, 'Waymo evaluation only supports normalized scores'
             pd_score = 1 / (1 + np.exp(-pd_score))
             print('Warning: Waymo evaluation only supports normalized scores')
