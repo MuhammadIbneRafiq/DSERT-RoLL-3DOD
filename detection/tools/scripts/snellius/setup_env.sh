@@ -44,14 +44,19 @@ pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorc
 pip install "numpy==1.23.5"
 pip install spconv-cu120
 pip install torch_scatter -f https://data.pyg.org/whl/torch-2.4.0+cu121.html
-pip install numba tensorboardX wandb easydict pyyaml scikit-image tqdm pandas tabulate kornia scipy matplotlib \
+pip install numba tensorboardX "wandb>=0.22.3,<0.27" easydict pyyaml scikit-image tqdm pandas tabulate kornia scipy matplotlib \
     "opencv-python-headless<4.10" "numpy==1.23.5"
 
-# Waymo AP for the evaluation at the end of training. If this fails, train with SKIP_EVAL=1 and evaluate elsewhere.
-pip install waymo-open-dataset-tf-2-12-0==1.6.4 "numpy==1.23.5" \
+# Waymo AP for the evaluation at the end of training. The wheel pins numpy==1.23 exactly, which pip treats as
+# conflicting with 1.23.5, so install its only runtime dependency the metric needs (TensorFlow 2.12, CPU build:
+# the metric runs on CPU) and then the wheel itself without dependencies. If this fails, train with SKIP_EVAL=1.
+# TensorFlow 2.12 needs protobuf < 5; wandb 0.22.3-0.26 accepts protobuf 4 and the long API keys (0.28.1+ needs protobuf 5).
+pip install "tensorflow-cpu==2.12.0" "numpy==1.23.5" "protobuf>=4.25,<5" "wandb>=0.22.3,<0.27" \
+    && pip install --no-deps waymo-open-dataset-tf-2-12-0==1.6.4 \
+    && python -c "from waymo_open_dataset.metrics.python import detection_metrics" \
     || echo "WARNING: waymo-open-dataset did not install; final evaluation will fail (use SKIP_EVAL=1)."
 
-python -c "import torch, spconv, torch_scatter; print('==> torch', torch.__version__, '| cuda', torch.version.cuda, '| spconv', spconv.__version__)"
+python -c "import torch, spconv, torch_scatter, wandb; print('==> torch', torch.__version__, '| cuda', torch.version.cuda, '| spconv', spconv.__version__, '| wandb', wandb.__version__)"
 
 # --- wandb login (one time, here on the login node) ---------------------------------------------------------
 # The key lands in ~/.netrc, which compute nodes share, so jobs log online without further setup.

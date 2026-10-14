@@ -240,9 +240,10 @@ def main():
 
     if args.compile:
         assert hasattr(model, 'compile_dense'), '--compile is only wired into models with compile_dense (CenterPointSingle)'
-        import torch._dynamo
+        # `from torch import ...`, not `import torch._dynamo`: the latter would make `torch` a local name in main().
+        from torch import _dynamo
         # Box/ROI counts change between iterations; give dynamo room for a few shape variants.
-        torch._dynamo.config.cache_size_limit = 64
+        _dynamo.config.cache_size_limit = 64
         n = model.compile_dense(mode=args.compile_mode)
         logger.info('torch.compile (%s) applied to %d dense submodules' % (args.compile_mode, n))
     
