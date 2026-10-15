@@ -29,7 +29,8 @@ MATCH_IOU = {'Vehicle': 0.5, 'Pedestrian': 0.3, 'Bike': 0.3}
 
 
 def add_common_args(parser):
-    parser.add_argument('--ckpt', required=True, help='checkpoint .pth (full or weights-only)')
+    parser.add_argument('--ckpt', required=True,
+                        help="checkpoint .pth (full or weights-only), or 'random' for an untrained model (seed 0)")
     parser.add_argument('--sensor', required=True, choices=['livox', 'ouster', 'radar'],
                         help='which point cloud to feed the model')
     parser.add_argument('--data_root', required=True, help='DSERT-RoLL root (contains ImageSets/ and processed_data/)')
@@ -42,7 +43,9 @@ def add_common_args(parser):
 
 def setup(args):
     """Load config, dataset and model. Returns (cfg, dataset, model, logger)."""
-    args.ckpt = os.path.abspath(args.ckpt)
+    random_init = args.ckpt == 'random'
+    if not random_init:
+        args.ckpt = os.path.abspath(args.ckpt)
     args.data_root = os.path.abspath(args.data_root)
     os.chdir(TOOLS_DIR)
     cfg_from_yaml_file(args.cfg_file, cfg)
@@ -52,8 +55,12 @@ def setup(args):
     dataset = dataset_classes[cfg.DATA_CONFIG.DATASET](
         dataset_cfg=cfg.DATA_CONFIG, class_names=cfg.CLASS_NAMES, root_path=None,
         training=(args.split == 'train'), logger=logger)
+    torch.manual_seed(0)  # makes the 'random' model reproducible; irrelevant when a checkpoint is loaded
     model = build_network(cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=dataset)
-    load_params_from_file(model, filename=args.ckpt, logger=logger, to_cpu=False)
+    if random_init:
+        logger.info('No checkpoint: untrained model with random weights (seed 0)')
+    else:
+        load_params_from_file(model, filename=args.ckpt, logger=logger, to_cpu=False)
     model.cuda().eval()
     if hasattr(model, 'set_amp'):
         model.set_amp(None)  # analysis in full fp32: gradients for Grad-CAM, stable features for t-SNE
