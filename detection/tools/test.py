@@ -39,6 +39,9 @@ def parse_config():
     parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
+    parser.add_argument('--wandb_project', type=str, default=None,
+                        help='log the evaluation results to this Weights & Biases project (off when not given)')
+    parser.add_argument('--wandb_entity', type=str, default=None)
 
     args = parser.parse_args()
 
@@ -61,10 +64,12 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
     model.cuda()
 
     # start evaluation
-    eval_utils.eval_one_epoch(
+    ret_dict = eval_utils.eval_one_epoch(
         cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
         result_dir=eval_output_dir, save_to_file=args.save_to_file
     )
+    if cfg.LOCAL_RANK == 0:
+        wandb_utils.log_eval(ret_dict, epoch_id if str(epoch_id).isdigit() else 0)
 
 
 def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
@@ -239,11 +244,14 @@ def main():
     )
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set)
+    if cfg.LOCAL_RANK == 0:
+        wandb_utils.init(args, cfg, output_dir, logger, job_type='eval')
     with torch.no_grad():
         if args.eval_all:
             repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test)
         else:
             eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=dist_test)
+    wandb_utils.finish()
 
 
 if __name__ == '__main__':

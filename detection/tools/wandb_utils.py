@@ -45,9 +45,9 @@ def _plain(obj):
     return str(obj)
 
 
-def init(args, cfg, output_dir, logger):
-    """Start (or resume) the run for this output dir. Call on rank 0 before training."""
-    if not args.wandb_project:
+def init(args, cfg, output_dir, logger, job_type='train'):
+    """Start (or resume) the run for this output dir. Call on rank 0 before training or evaluation."""
+    if not getattr(args, 'wandb_project', None):
         return None
     if wandb is None:
         raise ImportError('--wandb_project was given but wandb is not installed: pip install wandb')
@@ -59,10 +59,12 @@ def init(args, cfg, output_dir, logger):
 
     kwargs = dict(
         project=args.wandb_project,
-        entity=args.wandb_entity,
+        entity=getattr(args, 'wandb_entity', None),
         name='%s/%s' % (cfg.TAG, args.extra_tag),
         group=cfg.TAG,
-        tags=[str(t) for t in [cfg.DATA_CONFIG.get('SENSOR', {}).get('NAME'), 'amp-' + args.amp] if t],
+        job_type=job_type,
+        tags=[str(t) for t in [cfg.DATA_CONFIG.get('SENSOR', {}).get('NAME'), job_type,
+                               'amp-' + args.amp if getattr(args, 'amp', None) else None] if t],
         id=run_id,
         resume='allow',
         dir=str(output_dir),
