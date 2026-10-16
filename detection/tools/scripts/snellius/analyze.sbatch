@@ -1,16 +1,15 @@
 #!/bin/bash
 #
-# All GPU analysis in one job (1 H100, roughly 45-60 min):
+# GPU-only analysis in one job (1 H100, roughly 30-45 min). Only work that needs the GPU runs here:
 #   1. zero-shot evaluation: the Livox-pretrained checkpoint fed radar, no fine-tuning (AP, logged to wandb)
 #   2. encoder features on the full validation split for: radar_scratch, radar_ft_from_livox, livox_e20_on_radar
 #      (Livox model fed radar) and livox_pretrain (Livox model fed Livox, as reference)
 #   3. BEV Grad-CAM images for the radar-input models, a few frames per weather
-#   4. quick CPU statistics: recall tables + probe metrics, paired tests radar_ft_from_livox vs radar_scratch
-#   5. everything uploaded to wandb as one 'analysis' run
-# t-SNE is left out by default (CPU work): copy the .npz feature files to your laptop / a Kaggle CPU notebook and run
-# plot_tsne.py and failure_stats.py there as often as you like. TSNE=1 runs it here as well.
+# Everything CPU-side (t-SNE, probe metrics, failure_stats.py, plots, wandb upload of the folder) runs afterwards on
+# Kaggle / a laptop from the .npz files (see analysis/transfer_diagnosis.ipynb), or for the upload on a login node:
+#   python detection/tools/analysis/log_to_wandb.py --dir <OUT> --project dsert-single-sensor --name analysis_<date>
 #
-# Submit from the repository root (pip install statsmodels once on a login node, for the regressions):
+# Submit from the repository root:
 #
 #   sbatch --export=ALL,DATA_ROOT=$HOME/data/dsert_roll detection/tools/scripts/snellius/analyze.sbatch
 #
@@ -35,7 +34,6 @@ OUT="${OUT:-$HOME/analysis/$(date +%Y%m%d_%H%M)}"
 MAX_FRAMES="${MAX_FRAMES:-100000}"                                  # default: the whole validation split
 GRADCAM_WEATHERS="${GRADCAM_WEATHERS:-Clear Fog Light_Rain Heavy_Rain Light_Snow Heavy_Snow}"
 GRADCAM_FRAMES="${GRADCAM_FRAMES:-3}"                               # frames per weather and model
-TSNE="${TSNE:-0}"
 WANDB_PROJECT="${WANDB_PROJECT-dsert-single-sensor}"
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -58,7 +56,7 @@ A="$REPO_ROOT/detection/tools/analysis"
 echo "==> outputs: $OUT"
 
 # ---- 1) zero-shot evaluation (AP), logged to wandb as lidar_only/livox_e20_on_radar ------------------------
-echo "==> [1/5] Livox epoch-20 model evaluated on radar, no fine-tuning"
+echo "==> [1/3] Livox epoch-20 model evaluated on radar, no fine-tuning"
 DATA_ROOT="$DATA_ROOT" CKPT="$LIDAR_CKPT" SENSOR=radar NAME=livox_e20_on_radar WANDB_PROJECT="$WANDB_PROJECT" \
     bash "$SNELLIUS_DIR/eval_ckpt.sbatch"
 
@@ -66,7 +64,7 @@ DATA_ROOT="$DATA_ROOT" CKPT="$LIDAR_CKPT" SENSOR=radar NAME=livox_e20_on_radar W
 MODELS="radar_scratch:$SCRATCH_CKPT:radar radar_ft_from_livox:$FT_CKPT:radar livox_e20_on_radar:$LIDAR_CKPT:radar livox_pretrain:$LIDAR_CKPT:livox"
 for spec in $MODELS; do
     IFS=: read -r name ckpt sensor <<< "$spec"
-    echo "==> [2/5] features: $name ($sensor)"
+    echo "==> [2/3] features: $name ($sensor)"
     python "$A/extract_features.py" --ckpt "$ckpt" --sensor "$sensor" --data_root "$DATA_ROOT" --name "$name" \
         --out "$OUT/feats_$name.npz" --max_frames "$MAX_FRAMES"
 done
@@ -76,28 +74,11 @@ for spec in $MODELS; do
     IFS=: read -r name ckpt sensor <<< "$spec"
     [ "$sensor" = radar ] || continue
     for w in $GRADCAM_WEATHERS; do
-        echo "==> [3/5] Grad-CAM: $name, $w"
+        echo "==> [3/3] Grad-CAM: $name, $w"
         python "$A/gradcam_bev.py" --ckpt "$ckpt" --sensor "$sensor" --data_root "$DATA_ROOT" --name "$name" \
             --out_dir "$OUT/gradcam/$w" --weather "$w" --max_frames "$GRADCAM_FRAMES" || echo "   (no frames for $w)"
     done
 done
-
-# ---- 4) quick statistics (CPU, seconds) ----------------------------------------------------------------------
-echo "==> [4/5] statistics"
-TSNE_FLAG=--no_tsne
-[ "$TSNE" = "1" ] && TSNE_FLAG=
-# shellcheck disable=SC2086
-python "$A/plot_tsne.py" --features "$OUT"/feats_radar_scratch.npz "$OUT"/feats_radar_ft_from_livox.npz \
-    "$OUT"/feats_livox_e20_on_radar.npz "$OUT"/feats_livox_pretrain.npz --out_dir "$OUT" $TSNE_FLAG
-python "$A/failure_stats.py" --baseline "$OUT/feats_radar_scratch.npz" --treatment "$OUT/feats_radar_ft_from_livox.npz" \
-    --out_dir "$OUT"
-
-# ---- 5) upload --------------------------------------------------------------------------------------------
-if [ -n "$WANDB_PROJECT" ]; then
-    echo "==> [5/5] uploading to wandb"
-    python "$A/log_to_wandb.py" --dir "$OUT" --project "$WANDB_PROJECT" --name "analysis_$(basename "$OUT")" \
-        || echo "WARNING: wandb upload failed; results are still in $OUT"
-fi
 
 echo ""
 echo "==> done: $OUT ($(du -sh "$OUT" | cut -f1))"

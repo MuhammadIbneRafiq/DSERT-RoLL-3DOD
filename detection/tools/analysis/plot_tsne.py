@@ -53,11 +53,12 @@ def metrics(d, idx):
     from sklearn.neighbors import KNeighborsClassifier
     x = embed_space(d['feat'][idx])
     knn = KNeighborsClassifier(n_neighbors=10)
-    out = {
-        'objects': len(idx),
-        'knn_class_acc': cross_val_score(knn, x, d['cls'][idx], cv=5).mean(),
-        'silhouette_class': silhouette_score(x, d['cls'][idx], metric='cosine'),
-    }
+    out = {'objects': len(idx), 'knn_class_acc': np.nan, 'silhouette_class': np.nan}
+    if len(np.unique(d['cls'][idx])) > 1:  # both metrics are undefined when only one class is present
+        out['knn_class_acc'] = cross_val_score(knn, x, d['cls'][idx], cv=5).mean()
+        out['silhouette_class'] = silhouette_score(x, d['cls'][idx], metric='cosine')
+    else:
+        print('%s: only one class among the sampled objects; class metrics set to nan' % d['name'])
     weathers = d['weather'][idx]
     if len(np.unique(weathers)) > 1:
         out['knn_weather_acc'] = cross_val_score(knn, x, weathers, cv=5).mean()
