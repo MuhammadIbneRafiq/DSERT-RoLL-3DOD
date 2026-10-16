@@ -45,6 +45,7 @@ pip install "numpy==1.23.5"
 pip install spconv-cu120
 pip install torch_scatter -f https://data.pyg.org/whl/torch-2.4.0+cu121.html
 pip install numba tensorboardX "wandb>=0.22.3,<0.27" easydict pyyaml scikit-image tqdm pandas tabulate kornia scipy matplotlib \
+    scikit-learn statsmodels \
     "opencv-python-headless<4.10" "numpy==1.23.5"
 
 # Waymo AP for the evaluation at the end of training. The wheel pins numpy==1.23 exactly, which pip treats as
