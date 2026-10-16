@@ -84,7 +84,7 @@ def main():
             for k in order[:args.per_frame]:
                 col = int(((gt[k, 0] - pcr[0]) / (pcr[3] - pcr[0]) * W).clamp(0, W - 1))
                 row = int(((gt[k, 1] - pcr[1]) / (pcr[4] - pcr[1]) * H).clamp(0, H - 1))
-                c = int(gt[k, 7]) - 1
+                c = int(gt[k, -1]) - 1  # class = last column
                 r0, r1, c0, c1 = max(row - 1, 0), min(row + 2, H), max(col - 1, 0), min(col + 2, W)
                 score = hm[0, c, r0:r1, c0:c1].max()   # peak logit in the 3x3 cells around the centre
                 cams.append((k, gradcam(feat, score), torch.sigmoid(score).item()))
@@ -100,7 +100,7 @@ def main():
                 ax.imshow(cam, origin='lower', extent=extent, cmap='jet', alpha=0.55, aspect='auto')
                 ax.plot(*box_corners(gt_np[k]).T, c='white', lw=2.5)
                 ax.set_title('%s %s, %.0f m, %s\nheatmap score %.2f'
-                             % (cfg.CLASS_NAMES[int(gt_np[k, 7]) - 1], 'detected' if det_np[k] else 'MISSED',
+                             % (cfg.CLASS_NAMES[int(gt_np[k, -1]) - 1], 'detected' if det_np[k] else 'MISSED',
                                 np.linalg.norm(gt_np[k, :2]), args.sensor, prob))
             else:
                 for b in pred['pred_boxes'].cpu().numpy():

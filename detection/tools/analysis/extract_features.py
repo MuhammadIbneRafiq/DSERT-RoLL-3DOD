@@ -47,7 +47,9 @@ def main():
         npts = ac.points_in_boxes(batch['points'][batch['points'][:, 0] == 0][:, 1:4], gt[:, :7])
 
         rows['feat'].append(feat.cpu().numpy().astype(np.float32))
-        rows['cls'].append(gt[:, 7].long().cpu().numpy())
+        cls = gt[:, -1].long().cpu().numpy()  # class = last column (DSERT boxes carry vx, vy before it)
+        assert cls.min() >= 1 and cls.max() <= len(cfg.CLASS_NAMES), 'unexpected class ids %s' % np.unique(cls)
+        rows['cls'].append(cls)
         rows['dist'].append(torch.linalg.norm(gt[:, :2], dim=1).cpu().numpy())
         rows['npts'].append(npts.cpu().numpy())
         rows['iou'].append(iou.cpu().numpy())

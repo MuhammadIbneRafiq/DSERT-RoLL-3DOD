@@ -81,7 +81,8 @@ def load_frame(dataset, i):
 
 
 def gt_in_range(batch, pc_range):
-    """Ground-truth boxes (M, 8) [x, y, z, dx, dy, dz, heading, class] of sample 0 that lie inside the point cloud range."""
+    """Ground-truth boxes of sample 0 inside the point cloud range: (M, 7 + extra + 1) = [x, y, z, dx, dy, dz, heading,
+    (DSERT: vx, vy), class]. The class is always the LAST column, as in the training code (gt_boxes[..., -1])."""
     gt = batch['gt_boxes'][0]
     gt = gt[gt[:, 3:6].sum(1) > 0]  # drop zero padding
     keep = (gt[:, 0] >= pc_range[0]) & (gt[:, 0] < pc_range[3]) & (gt[:, 1] >= pc_range[1]) & (gt[:, 1] < pc_range[4])
@@ -118,11 +119,11 @@ def match_detections(pred, gt, class_names):
     best_score = torch.zeros(m, device=gt.device)
     if m and len(pred['pred_boxes']):
         iou = iou3d_nms_utils.boxes_iou3d_gpu(pred['pred_boxes'][:, :7].float(), gt[:, :7].float())   # (P, M)
-        same = pred['pred_labels'].long()[:, None] == gt[:, 7].long()[None, :]
+        same = pred['pred_labels'].long()[:, None] == gt[:, -1].long()[None, :]
         iou = torch.where(same, iou, torch.zeros_like(iou))
         best_iou, arg = iou.max(0)
         best_score = pred['pred_scores'][arg] * (best_iou > 0)
-    thr = torch.tensor([MATCH_IOU.get(class_names[int(c) - 1], 0.5) for c in gt[:, 7]], device=gt.device)
+    thr = torch.tensor([MATCH_IOU.get(class_names[int(c) - 1], 0.5) for c in gt[:, -1]], device=gt.device)
     return best_iou, best_score, best_iou >= thr
 
 

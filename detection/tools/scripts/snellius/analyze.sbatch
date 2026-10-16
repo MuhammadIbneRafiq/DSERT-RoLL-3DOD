@@ -34,6 +34,7 @@ OUT="${OUT:-$HOME/analysis/$(date +%Y%m%d_%H%M)}"
 MAX_FRAMES="${MAX_FRAMES:-100000}"                                  # default: the whole validation split
 GRADCAM_WEATHERS="${GRADCAM_WEATHERS:-Clear Fog Light_Rain Heavy_Rain Light_Snow Heavy_Snow}"
 GRADCAM_FRAMES="${GRADCAM_FRAMES:-3}"                               # frames per weather and model
+ZERO_SHOT_EVAL="${ZERO_SHOT_EVAL:-1}"                               # 0 = skip step 1 (its AP is already on wandb)
 WANDB_PROJECT="${WANDB_PROJECT-dsert-single-sensor}"
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -56,9 +57,11 @@ A="$REPO_ROOT/detection/tools/analysis"
 echo "==> outputs: $OUT"
 
 # ---- 1) zero-shot evaluation (AP), logged to wandb as lidar_only/livox_e20_on_radar ------------------------
-echo "==> [1/3] Livox epoch-20 model evaluated on radar, no fine-tuning"
-DATA_ROOT="$DATA_ROOT" CKPT="$LIDAR_CKPT" SENSOR=radar NAME=livox_e20_on_radar WANDB_PROJECT="$WANDB_PROJECT" \
-    bash "$SNELLIUS_DIR/eval_ckpt.sbatch"
+if [ "$ZERO_SHOT_EVAL" = "1" ]; then
+    echo "==> [1/3] Livox epoch-20 model evaluated on radar, no fine-tuning"
+    DATA_ROOT="$DATA_ROOT" CKPT="$LIDAR_CKPT" SENSOR=radar NAME=livox_e20_on_radar WANDB_PROJECT="$WANDB_PROJECT" \
+        bash "$SNELLIUS_DIR/eval_ckpt.sbatch"
+fi
 
 # ---- 2) encoder features (name : checkpoint : input sensor) -------------------------------------------------
 MODELS="radar_scratch:$SCRATCH_CKPT:radar radar_ft_from_livox:$FT_CKPT:radar livox_e20_on_radar:$LIDAR_CKPT:radar livox_pretrain:$LIDAR_CKPT:livox"
