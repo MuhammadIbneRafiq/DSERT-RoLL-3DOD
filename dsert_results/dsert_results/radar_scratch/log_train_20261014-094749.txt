@@ -1,0 +1,719 @@
+2026-10-14 09:47:49,070   INFO  **********************Start logging**********************
+2026-10-14 09:47:49,070   INFO  CUDA_VISIBLE_DEVICES=0
+2026-10-14 09:47:49,071   INFO  total_batch_size: 16
+2026-10-14 09:47:49,071   INFO  cfg_file         cfgs/det_model_cfgs/dsert/lidar_only.yaml
+2026-10-14 09:47:49,071   INFO  batch_size       16
+2026-10-14 09:47:49,071   INFO  epochs           20
+2026-10-14 09:47:49,071   INFO  workers          14
+2026-10-14 09:47:49,071   INFO  extra_tag        radar_scratch
+2026-10-14 09:47:49,071   INFO  ckpt             None
+2026-10-14 09:47:49,071   INFO  pretrained_model None
+2026-10-14 09:47:49,071   INFO  fix_pretrained_weights False
+2026-10-14 09:47:49,071   INFO  launcher         pytorch
+2026-10-14 09:47:49,071   INFO  tcp_port         18888
+2026-10-14 09:47:49,071   INFO  sync_bn          False
+2026-10-14 09:47:49,071   INFO  fix_random_seed  False
+2026-10-14 09:47:49,071   INFO  ckpt_save_interval 1
+2026-10-14 09:47:49,071   INFO  local_rank       0
+2026-10-14 09:47:49,071   INFO  max_ckpt_save_num 5
+2026-10-14 09:47:49,071   INFO  merge_all_iters_to_one_epoch False
+2026-10-14 09:47:49,071   INFO  find_unused_parameters True
+2026-10-14 09:47:49,071   INFO  set_cfgs         ['DATA_CONFIG.DATA_PATH', '/home/mrafiq/data/dsert_roll', 'DATA_CONFIG.SENSOR.NAME', 'radar']
+2026-10-14 09:47:49,071   INFO  max_waiting_mins 0
+2026-10-14 09:47:49,071   INFO  start_epoch      0
+2026-10-14 09:47:49,071   INFO  save_to_file     False
+2026-10-14 09:47:49,071   INFO  amp              fp16
+2026-10-14 09:47:49,071   INFO  compile          True
+2026-10-14 09:47:49,071   INFO  compile_mode     default
+2026-10-14 09:47:49,072   INFO  pretrained_scope all
+2026-10-14 09:47:49,072   INFO  wandb_project    dsert-single-sensor
+2026-10-14 09:47:49,072   INFO  wandb_entity     None
+2026-10-14 09:47:49,072   INFO  skip_final_eval  False
+2026-10-14 09:47:49,072   INFO  cfg.LOCAL_RANK: 0
+2026-10-14 09:47:49,072   INFO  cfg.CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Bike']
+2026-10-14 09:47:49,072   INFO  
+cfg.DATA_CONFIG = edict()
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.DATASET: DSERTSingleSensorDataset
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.DATA_PATH: /home/mrafiq/data/dsert_roll
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.PROCESSED_DATA_TAG: processed_data
+2026-10-14 09:47:49,072   INFO  
+cfg.DATA_CONFIG.SENSOR = edict()
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.SENSOR.NAME: radar
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.SENSOR.PATH_KEY: auto
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.SENSOR.CALIB_NAME: auto
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.POINT_CLOUD_RANGE: [0, -76.8, -2, 76.8, 76.8, 4]
+2026-10-14 09:47:49,072   INFO  
+cfg.DATA_CONFIG.DATA_SPLIT = edict()
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.DATA_SPLIT.train: train
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.DATA_SPLIT.test: val
+2026-10-14 09:47:49,072   INFO  
+cfg.DATA_CONFIG.SAMPLED_INTERVAL = edict()
+2026-10-14 09:47:49,072   INFO  cfg.DATA_CONFIG.SAMPLED_INTERVAL.train: 1
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.SAMPLED_INTERVAL.test: 1
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.SWEEP_COUNT: [0, 0]
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.TTA: False
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.USE_IMAGE: False
+2026-10-14 09:47:49,073   INFO  
+cfg.DATA_CONFIG.DATA_AUGMENTOR = edict()
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST: ['placeholder', 'gt_sampling']
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.DATA_AUGMENTOR.AUG_CONFIG_LIST: [{'NAME': 'random_world_flip', 'ALONG_AXIS_LIST': ['x'], 'RETURN_NOISE_FLIP': True}, {'NAME': 'random_world_rotation', 'WORLD_ROT_ANGLE': [-0.78539816, 0.78539816], 'RETURN_NOISE_ROTATE': True}, {'NAME': 'random_world_scaling', 'WORLD_SCALE_RANGE': [0.95, 1.05], 'RETURN_NOISE_SCALE': True}, {'NAME': 'random_world_translation', 'STD': 0.5, 'RETURN_NOISE_TRANSLATION': True}]
+2026-10-14 09:47:49,073   INFO  
+cfg.DATA_CONFIG.POINT_FEATURE_ENCODING = edict()
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.encoding_type: absolute_coordinates_encoding
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.used_feature_list: ['x', 'y', 'z', 'intensity']
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.src_feature_list: ['x', 'y', 'z', 'intensity']
+2026-10-14 09:47:49,073   INFO  
+cfg.DATA_CONFIG.RADAR_POINT_FEATURE_ENCODING = edict()
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.RADAR_POINT_FEATURE_ENCODING.encoding_type: absolute_coordinates_encoding
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.RADAR_POINT_FEATURE_ENCODING.src_feature_list: ['x', 'y', 'z', 'doppler']
+2026-10-14 09:47:49,073   INFO  cfg.DATA_CONFIG.RADAR_POINT_FEATURE_ENCODING.used_feature_list: ['x', 'y', 'z', 'doppler']
+2026-10-14 09:47:49,074   INFO  cfg.DATA_CONFIG.DATA_PROCESSOR: [{'NAME': 'mask_points_and_boxes_outside_range', 'REMOVE_OUTSIDE_BOXES': True, 'POINTS_KEY': 'points'}, {'NAME': 'shuffle_points', 'SHUFFLE_ENABLED': {'train': True, 'test': False}, 'POINTS_KEY': 'points'}, {'NAME': 'transform_points_to_voxels_placeholder', 'VOXEL_SIZE': [0.2, 0.2, 0.15]}]
+2026-10-14 09:47:49,074   INFO  cfg.DATA_CONFIG._BASE_CONFIG_: cfgs/det_dataset_cfgs/dsert_single_sensor.yaml
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.NAME: CenterPointSingle
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.SECOND_STAGE: True
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL.VFE = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.VFE.NAME: DynamicMeanVFE
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL.BACKBONE_3D = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_3D.NAME: Backbone3D_align
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL.MAP_TO_BEV = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.MAP_TO_BEV.NAME: HeightCompression
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.MAP_TO_BEV.NUM_BEV_FEATURES: 256
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL.BACKBONE_2D = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_2D.NAME: Backbone2D
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_2D.LAYER_NUMS: [5, 5]
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_2D.LAYER_STRIDES: [1, 2]
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_2D.NUM_FILTERS: [128, 256]
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_2D.UPSAMPLE_STRIDES: [1, 2]
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.BACKBONE_2D.NUM_UPSAMPLE_FILTERS: [256, 256]
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL.DENSE_HEAD = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.NAME: CenterHead
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.CLASS_AGNOSTIC: False
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.CLASS_NAMES_EACH_HEAD: [['Vehicle', 'Pedestrian', 'Bike']]
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.SHARED_CONV_CHANNEL: 64
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.USE_BIAS_BEFORE_NORM: True
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.NUM_HM_CONV: 2
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.IOU_WEIGHT: 1
+2026-10-14 09:47:49,074   INFO  
+cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG = edict()
+2026-10-14 09:47:49,074   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_ORDER: ['center', 'center_z', 'dim', 'rot']
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT = edict()
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.center = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.center.out_channels: 2
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.center.num_conv: 2
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.center_z = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.center_z.out_channels: 1
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.center_z.num_conv: 2
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.dim = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.dim.out_channels: 3
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.dim.num_conv: 2
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.rot = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.rot.out_channels: 2
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.SEPARATE_HEAD_CFG.HEAD_DICT.rot.num_conv: 2
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.TARGET_ASSIGNER_CONFIG = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.TARGET_ASSIGNER_CONFIG.FEATURE_MAP_STRIDE: 8
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.TARGET_ASSIGNER_CONFIG.NUM_MAX_OBJS: 500
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.TARGET_ASSIGNER_CONFIG.GAUSSIAN_OVERLAP: 0.1
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.TARGET_ASSIGNER_CONFIG.MIN_RADIUS: 2
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.LOSS_CONFIG = edict()
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.LOSS_CONFIG.LOSS_WEIGHTS = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.cls_weight: 1.0
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.loc_weight: 2.0
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.code_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.POST_PROCESSING = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.SCORE_THRESH: 0.1
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.POST_CENTER_LIMIT_RANGE: [0, -80, -10.0, 80, 80, 10.0]
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.MAX_OBJ_PER_SAMPLE: 500
+2026-10-14 09:47:49,075   INFO  
+cfg.MODEL.DENSE_HEAD.POST_PROCESSING.NMS_CONFIG = edict()
+2026-10-14 09:47:49,075   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.NMS_CONFIG.NMS_TYPE: nms_gpu
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.NMS_CONFIG.NMS_THRESH: 0.7
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.NMS_CONFIG.NMS_PRE_MAXSIZE: 4096
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.DENSE_HEAD.POST_PROCESSING.NMS_CONFIG.NMS_POST_MAXSIZE: 500
+2026-10-14 09:47:49,076   INFO  
+cfg.MODEL.ROI_HEAD = edict()
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NAME: LoGoHead
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.CLASS_AGNOSTIC: True
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.SHARED_FC: [256, 256]
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.CLS_FC: [256, 256]
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.REG_FC: [256, 256]
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.DP_RATIO: 0.3
+2026-10-14 09:47:49,076   INFO  
+cfg.MODEL.ROI_HEAD.NMS_CONFIG = edict()
+2026-10-14 09:47:49,076   INFO  
+cfg.MODEL.ROI_HEAD.NMS_CONFIG.TRAIN = edict()
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TRAIN.NMS_TYPE: nms_gpu
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TRAIN.MULTI_CLASSES_NMS: False
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TRAIN.NMS_PRE_MAXSIZE: 9000
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TRAIN.NMS_POST_MAXSIZE: 512
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TRAIN.NMS_THRESH: 0.8
+2026-10-14 09:47:49,076   INFO  
+cfg.MODEL.ROI_HEAD.NMS_CONFIG.TEST = edict()
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TEST.NMS_TYPE: nms_gpu
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TEST.MULTI_CLASSES_NMS: False
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TEST.NMS_PRE_MAXSIZE: 1024
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TEST.NMS_POST_MAXSIZE: 512
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.NMS_CONFIG.TEST.NMS_THRESH: 0.7
+2026-10-14 09:47:49,076   INFO  
+cfg.MODEL.ROI_HEAD.VOXEL_AGGREGATION = edict()
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.VOXEL_AGGREGATION.NUM_FEATURES: [64, 128]
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.VOXEL_AGGREGATION.FEATURE_LOCATIONS: ['x_conv3', 'x_conv4']
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.VOXEL_AGGREGATION.HIDDEN_FEATURES: 64
+2026-10-14 09:47:49,076   INFO  
+cfg.MODEL.ROI_HEAD.ROI_GRID_POOL = edict()
+2026-10-14 09:47:49,076   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.FEATURE_LOCATIONS: ['x_conv3', 'x_conv4']
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.GRID_SIZE: 6
+2026-10-14 09:47:49,077   INFO  
+cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS = edict()
+2026-10-14 09:47:49,077   INFO  
+cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv3 = edict()
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv3.MLPS: [[32, 32], [32, 32]]
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv3.POOL_RADIUS: [0.8, 1.2]
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv3.NSAMPLE: [16, 16]
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv3.POOL_METHOD: max_pool
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv3.USE_DENSITY: True
+2026-10-14 09:47:49,077   INFO  
+cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv4 = edict()
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv4.MLPS: [[64, 64], [64, 64]]
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv4.POOL_RADIUS: [1.2, 2.4]
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv4.NSAMPLE: [16, 16]
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv4.POOL_METHOD: max_pool
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.POOL_LAYERS.x_conv4.USE_DENSITY: True
+2026-10-14 09:47:49,077   INFO  
+cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION = edict()
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.ENABLED: False
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.NUM_FEATURES: 192
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.NUM_HEADS: 1
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.NUM_HIDDEN_FEATURES: 128
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.NUM_LAYERS: 1
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.POSITIONAL_ENCODER: density_grid_points
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.MAX_NUM_BOXES: 20
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.DROPOUT: 0.1
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.COMBINE: True
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.ATTENTION.MASK_EMPTY_POINTS: True
+2026-10-14 09:47:49,077   INFO  
+cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY = edict()
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.ENABLED: False
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.NUM_FEATURES: 192
+2026-10-14 09:47:49,077   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.NUM_HIDDEN_FEATURES: 128
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.POSITIONAL_ENCODER: density_grid_points
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.MAX_NUM_BOXES: 20
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.DROPOUT: 0.1
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.COMBINE: True
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.ROI_GRID_POOL.DENSITYQUERY.MASK_EMPTY_POINTS: True
+2026-10-14 09:47:49,078   INFO  
+cfg.MODEL.ROI_HEAD.TARGET_CONFIG = edict()
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.BOX_CODER: ResidualCoder
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.ROI_PER_IMAGE: 128
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.FG_RATIO: 0.5
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.SAMPLE_ROI_BY_EACH_CLASS: True
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.CLS_SCORE_TYPE: roi_iou
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.CLS_FG_THRESH: 0.75
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.CLS_BG_THRESH: 0.25
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.CLS_BG_THRESH_LO: 0.1
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.HARD_BG_RATIO: 0.8
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.TARGET_CONFIG.REG_FG_THRESH: 0.55
+2026-10-14 09:47:49,078   INFO  
+cfg.MODEL.ROI_HEAD.LOSS_CONFIG = edict()
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.CLS_LOSS: BinaryCrossEntropy
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.REG_LOSS: smooth-l1
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.CORNER_LOSS_REGULARIZATION: True
+2026-10-14 09:47:49,078   INFO  
+cfg.MODEL.ROI_HEAD.LOSS_CONFIG.LOSS_WEIGHTS = edict()
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.rcnn_cls_weight: 1.0
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.rcnn_reg_weight: 1.0
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.rcnn_corner_weight: 1.0
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.ROI_HEAD.LOSS_CONFIG.LOSS_WEIGHTS.code_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+2026-10-14 09:47:49,078   INFO  
+cfg.MODEL.POST_PROCESSING = edict()
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST: [0.3, 0.5, 0.7]
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.POST_PROCESSING.SCORE_THRESH: 0.1
+2026-10-14 09:47:49,078   INFO  cfg.MODEL.POST_PROCESSING.OUTPUT_RAW_SCORE: False
+2026-10-14 09:47:49,079   INFO  cfg.MODEL.POST_PROCESSING.EVAL_METRIC: waymo
+2026-10-14 09:47:49,079   INFO  
+cfg.MODEL.POST_PROCESSING.NMS_CONFIG = edict()
+2026-10-14 09:47:49,079   INFO  cfg.MODEL.POST_PROCESSING.NMS_CONFIG.MULTI_CLASSES_NMS: False
+2026-10-14 09:47:49,079   INFO  cfg.MODEL.POST_PROCESSING.NMS_CONFIG.NMS_TYPE: nms_gpu
+2026-10-14 09:47:49,079   INFO  cfg.MODEL.POST_PROCESSING.NMS_CONFIG.NMS_THRESH: 0.7
+2026-10-14 09:47:49,079   INFO  cfg.MODEL.POST_PROCESSING.NMS_CONFIG.NMS_PRE_MAXSIZE: 4096
+2026-10-14 09:47:49,079   INFO  cfg.MODEL.POST_PROCESSING.NMS_CONFIG.NMS_POST_MAXSIZE: 500
+2026-10-14 09:47:49,079   INFO  
+cfg.OPTIMIZATION = edict()
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU: 16
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.NUM_EPOCHS: 20
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.OPTIMIZER: adam_onecycle
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.LR: 0.001
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.WEIGHT_DECAY: 0.01
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.MOMENTUM: 0.9
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.MOMS: [0.95, 0.85]
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.PCT_START: 0.4
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.DIV_FACTOR: 10
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.DECAY_STEP_LIST: [35, 45]
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.LR_DECAY: 0.1
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.LR_CLIP: 1e-07
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.LR_WARMUP: False
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.WARMUP_EPOCH: 1
+2026-10-14 09:47:49,079   INFO  cfg.OPTIMIZATION.GRAD_NORM_CLIP: 10
+2026-10-14 09:47:49,079   INFO  cfg.ROOT_DIR: /gpfs/home5/mrafiq/DSERT-RoLL-3DOD/detection
+2026-10-14 09:47:49,079   INFO  cfg.TAG: lidar_only
+2026-10-14 09:47:49,079   INFO  cfg.EXP_GROUP_PATH: det_model_cfgs/dsert
+2026-10-14 09:47:50,855   INFO  wandb run: lidar_only/radar_scratch (https://wandb.ai/muhammadibnerafiq-tilburg-university/dsert-single-sensor/runs/bf045f97)
+2026-10-14 09:47:50,856   INFO  Loading DSERT dataset
+2026-10-14 09:47:51,592   INFO  Total skipped info 4
+2026-10-14 09:47:51,592   INFO  Total samples for DSERT dataset: 16042
+2026-10-14 09:47:51,594   INFO  Single-sensor dataset: sensor=radar, path=info["sensor"]["radar_path"], calib=Radar, intensity transform=none
+2026-10-14 09:47:51,594   INFO  radar -> Livox transform (first frame):
+[[ 0.0078  0.9987  0.0503 -0.0504]
+ [-0.9988  0.0053  0.0492 -0.0637]
+ [ 0.0489 -0.0507  0.9975 -0.1038]
+ [ 0.      0.      0.      1.    ]]
+2026-10-14 09:47:51,965   INFO  Mixed precision: fp16 (with GradScaler)
+2026-10-14 09:47:53,715   INFO  torch.compile (default) applied to 9 dense submodules
+2026-10-14 09:47:53,994   INFO  DistributedDataParallel(
+  (module): CenterPointSingle(
+    (vfe): DynamicMeanVFE()
+    (backbone3d): Backbone3D_align(
+      (conv_input): SparseSequential(
+        (0): SubMConv3d(4, 16, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], bias=False, algo=ConvAlgo.MaskImplicitGemm)
+        (1): BatchNorm1d(16, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        (2): ReLU()
+      )
+      (conv1): SparseSequential(
+        (0): SparseBasicBlock(
+          (conv1): SubMConv3d(16, 16, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(16, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(16, 16, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(16, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+        (1): SparseBasicBlock(
+          (conv1): SubMConv3d(16, 16, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(16, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(16, 16, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(16, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+      )
+      (conv2): SparseSequential(
+        (0): SparseSequential(
+          (0): SparseConv3d(16, 32, kernel_size=[3, 3, 3], stride=[2, 2, 2], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], bias=False, algo=ConvAlgo.MaskImplicitGemm)
+          (1): BatchNorm1d(32, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (2): ReLU()
+        )
+        (1): SparseBasicBlock(
+          (conv1): SubMConv3d(32, 32, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(32, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(32, 32, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(32, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+        (2): SparseBasicBlock(
+          (conv1): SubMConv3d(32, 32, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(32, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(32, 32, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(32, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+      )
+      (conv3): SparseSequential(
+        (0): SparseSequential(
+          (0): SparseConv3d(32, 64, kernel_size=[3, 3, 3], stride=[2, 2, 2], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], bias=False, algo=ConvAlgo.MaskImplicitGemm)
+          (1): BatchNorm1d(64, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (2): ReLU()
+        )
+        (1): SparseBasicBlock(
+          (conv1): SubMConv3d(64, 64, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(64, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(64, 64, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(64, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+        (2): SparseBasicBlock(
+          (conv1): SubMConv3d(64, 64, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(64, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(64, 64, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(64, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+      )
+      (conv4): SparseSequential(
+        (0): SparseSequential(
+          (0): SparseConv3d(64, 128, kernel_size=[3, 3, 3], stride=[2, 2, 2], padding=[0, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], bias=False, algo=ConvAlgo.MaskImplicitGemm)
+          (1): BatchNorm1d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (2): ReLU()
+        )
+        (1): SparseBasicBlock(
+          (conv1): SubMConv3d(128, 128, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(128, 128, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+        (2): SparseBasicBlock(
+          (conv1): SubMConv3d(128, 128, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn1): BatchNorm1d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (relu): ReLU()
+          (conv2): SubMConv3d(128, 128, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[1, 1, 1], dilation=[1, 1, 1], output_padding=[0, 0, 0], algo=ConvAlgo.MaskImplicitGemm)
+          (bn2): BatchNorm1d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        )
+      )
+      (conv_out): SparseSequential(
+        (0): SparseConv3d(128, 128, kernel_size=[3, 1, 1], stride=[2, 1, 1], padding=[0, 0, 0], dilation=[1, 1, 1], output_padding=[0, 0, 0], bias=False, algo=ConvAlgo.MaskImplicitGemm)
+        (1): BatchNorm1d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+        (2): ReLU()
+      )
+    )
+    (map_to_bev): HeightCompression()
+    (backbone2d): Backbone2D(
+      (blocks): ModuleList(
+        (0): Sequential(
+          (0): ZeroPad2d((1, 1, 1, 1))
+          (1): Conv2d(256, 128, kernel_size=(3, 3), stride=(1, 1), bias=False)
+          (2): BatchNorm2d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (3): ReLU()
+          (4): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (5): BatchNorm2d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (6): ReLU()
+          (7): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (8): BatchNorm2d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (9): ReLU()
+          (10): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (11): BatchNorm2d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (12): ReLU()
+          (13): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (14): BatchNorm2d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (15): ReLU()
+          (16): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (17): BatchNorm2d(128, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (18): ReLU()
+        )
+        (1): Sequential(
+          (0): ZeroPad2d((1, 1, 1, 1))
+          (1): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), bias=False)
+          (2): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (3): ReLU()
+          (4): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (5): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (6): ReLU()
+          (7): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (8): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (9): ReLU()
+          (10): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (11): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (12): ReLU()
+          (13): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (14): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (15): ReLU()
+          (16): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+          (17): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (18): ReLU()
+        )
+      )
+      (deblocks): ModuleList(
+        (0): Sequential(
+          (0): ConvTranspose2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (1): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (2): ReLU()
+        )
+        (1): Sequential(
+          (0): ConvTranspose2d(256, 256, kernel_size=(2, 2), stride=(2, 2), bias=False)
+          (1): BatchNorm2d(256, eps=0.001, momentum=0.01, affine=True, track_running_stats=True)
+          (2): ReLU()
+        )
+      )
+    )
+    (dense_head): CenterHead(
+      (shared_conv): Sequential(
+        (0): Conv2d(512, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU()
+      )
+      (heads_list): ModuleList(
+        (0): SeparateHead(
+          (center): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+            )
+            (1): Conv2d(64, 2, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          )
+          (center_z): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+            )
+            (1): Conv2d(64, 1, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          )
+          (dim): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+            )
+            (1): Conv2d(64, 3, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          )
+          (rot): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+            )
+            (1): Conv2d(64, 2, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          )
+          (hm): Sequential(
+            (0): Sequential(
+              (0): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+            )
+            (1): Conv2d(64, 3, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          )
+        )
+      )
+      (hm_loss_func): FocalLossCenterNet()
+      (reg_loss_func): RegLossCenterNet()
+    )
+    (roi_head): LoGoHead(
+      (proposal_target_layer): ProposalTargetLayer()
+      (reg_loss_func): WeightedSmoothL1Loss()
+      (ffn): Sequential(
+        (0): Conv1d(7, 32, kernel_size=(1,), stride=(1,))
+        (1): BatchNorm1d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv1d(32, 64, kernel_size=(1,), stride=(1,))
+      )
+      (up_ffn): Sequential(
+        (0): Conv1d(64, 96, kernel_size=(1,), stride=(1,))
+        (1): BatchNorm1d(96, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv1d(96, 192, kernel_size=(1,), stride=(1,))
+      )
+      (roi_grid_pool_layers): ModuleList(
+        (0): StackSAModuleMSG(
+          (groupers): ModuleList(
+            (0-1): 2 x QueryAndGroup()
+          )
+          (mlps): ModuleList(
+            (0-1): 2 x Sequential(
+              (0): Conv2d(68, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+              (3): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (4): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (5): ReLU()
+            )
+          )
+        )
+        (1): StackSAModuleMSG(
+          (groupers): ModuleList(
+            (0-1): 2 x QueryAndGroup()
+          )
+          (mlps): ModuleList(
+            (0-1): 2 x Sequential(
+              (0): Conv2d(132, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): ReLU()
+              (3): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+              (4): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (5): ReLU()
+            )
+          )
+        )
+      )
+      (shared_fc_layer): Sequential(
+        (0): Conv1d(41472, 256, kernel_size=(1,), stride=(1,), bias=False)
+        (1): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU()
+        (3): Dropout(p=0.3, inplace=False)
+        (4): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+        (5): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (6): ReLU()
+      )
+      (reg_layers): Sequential(
+        (0): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+        (1): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU()
+        (3): Dropout(p=0.3, inplace=False)
+        (4): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+        (5): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (6): ReLU()
+        (7): Conv1d(256, 7, kernel_size=(1,), stride=(1,))
+      )
+      (cls_layers): Sequential(
+        (0): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+        (1): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU()
+        (3): Dropout(p=0.3, inplace=False)
+        (4): Conv1d(256, 256, kernel_size=(1,), stride=(1,), bias=False)
+        (5): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (6): ReLU()
+        (7): Conv1d(256, 1, kernel_size=(1,), stride=(1,))
+      )
+    )
+  )
+)
+2026-10-14 09:47:53,998   INFO  **********************Start training det_model_cfgs/dsert/lidar_only(radar_scratch)**********************
+2026-10-14 15:56:38,773   INFO  **********************End training det_model_cfgs/dsert/lidar_only(radar_scratch)**********************
+
+
+
+2026-10-14 15:56:38,773   INFO  **********************Start evaluation det_model_cfgs/dsert/lidar_only(radar_scratch)**********************
+2026-10-14 15:56:38,775   INFO  Loading DSERT dataset
+2026-10-14 15:56:39,172   INFO  Total skipped info 2
+2026-10-14 15:56:39,172   INFO  Total samples for DSERT dataset: 5637
+2026-10-14 15:56:39,175   INFO  Single-sensor dataset: sensor=radar, path=info["sensor"]["radar_path"], calib=Radar, intensity transform=none
+2026-10-14 15:56:39,176   INFO  radar -> Livox transform (first frame):
+[[ 0.0078  0.9987  0.0503 -0.0504]
+ [-0.9988  0.0053  0.0492 -0.0637]
+ [ 0.0489 -0.0507  0.9975 -0.1038]
+ [ 0.      0.      0.      1.    ]]
+2026-10-14 15:56:39,181   INFO  ==> Loading parameters from checkpoint /gpfs/home5/mrafiq/DSERT-RoLL-3DOD/detection/output/det_model_cfgs/dsert/lidar_only/radar_scratch/ckpt/checkpoint_epoch_20.pth to CPU
+2026-10-14 15:56:39,319   INFO  ==> Checkpoint trained from version: al3d_det+0.1.0+37bad2a+py4af22e1
+2026-10-14 15:56:40,024   INFO  ==> Done (loaded 385/385)
+2026-10-14 15:56:40,029   INFO  *************** EPOCH 20 EVALUATION *****************
+2026-10-14 15:59:32,985   INFO  *************** Performance of EPOCH 20 *****************
+2026-10-14 15:59:32,985   INFO  Generate label finished(sec_per_example: 0.0307 second).
+2026-10-14 15:59:32,986   INFO  recall_roi_0.3: 0.670795
+2026-10-14 15:59:32,986   INFO  recall_rcnn_0.3: 0.671341
+2026-10-14 15:59:32,986   INFO  recall_roi_0.5: 0.467899
+2026-10-14 15:59:32,986   INFO  recall_rcnn_0.5: 0.487023
+2026-10-14 15:59:32,986   INFO  recall_roi_0.7: 0.121300
+2026-10-14 15:59:32,986   INFO  recall_rcnn_0.7: 0.150897
+2026-10-14 15:59:32,988   INFO  Average predicted number of objects(5637 samples): 22.591
+2026-10-14 16:00:48,382   INFO  ==== Overall ====
+[overall] N=5637
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0008
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0005
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0008
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.3170
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.3098
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.3170
+
+==== Per Weather ====
+[weather=Clear] N=3248
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0002
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0002
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.2898
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.2829
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.2898
+[weather=Fog] N=608
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.4442
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.4355
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.4442
+[weather=Light_Rain] N=576
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0127
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0096
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0127
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.5001
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.4912
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.5001
+[weather=Heavy_Rain] N=496
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.3139
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.3073
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.3139
+[weather=Light_Snow] N=469
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0010
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0010
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0010
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.3460
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.3380
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.3460
+[weather=Heavy_Snow] N=240
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.1922
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.1864
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.1922
+
+==== Per Light ====
+[light=Normal] N=1802
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0021
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0009
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0021
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.2950
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.2892
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.2950
+[light=Low_Light] N=2029
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0018
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0011
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0018
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.2770
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.2697
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.2770
+[light=Over_Expose] N=956
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0002
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0001
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0002
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.4091
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.3999
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.4091
+[light=HDR] N=850
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_CYCLIST_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/AP: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APH: 0.0000
+OBJECT_TYPE_TYPE_PEDESTRIAN_LEVEL_1/APL: 0.0000
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/AP: 0.3924
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APH: 0.3838
+OBJECT_TYPE_TYPE_VEHICLE_LEVEL_1/APL: 0.3924
+
+2026-10-14 16:00:48,383   INFO  Result is save to /gpfs/home5/mrafiq/DSERT-RoLL-3DOD/detection/output/det_model_cfgs/dsert/lidar_only/radar_scratch/eval/eval_with_train/epoch_20/val
+2026-10-14 16:00:48,384   INFO  ****************Evaluation done.*****************
+2026-10-14 16:00:48,455   INFO  Epoch 20 has been evaluated
+2026-10-14 16:00:48,456   INFO  **********************End evaluation det_model_cfgs/dsert/lidar_only(radar_scratch)**********************

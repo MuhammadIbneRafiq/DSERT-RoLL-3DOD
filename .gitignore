@@ -30,3 +30,9 @@ detection/data/dsert-roll-sample
 # Compiled CUDA extensions (built locally via setup.py)
 detection/al3d_det/models/ops/*.so
 utils/al3d_utils/ops/**/*.so
+
+# Pictures / reports written by calibration_demo and check_calibration.py
+calibration_demo/output/
+
+# frame_inspector.ipynb run on a laptop
+frame_inspector_output/
