@@ -9,7 +9,8 @@ SENSOR:
     # 'auto' = detect; the resolved values are printed at startup and by preflight_single_sensor.py.
     PATH_KEY: auto      # key in info['sensor']; auto -> any key containing the sensor name, else swap FOLDER into livox_path
     CALIB_NAME: auto    # key in info['calibration']; auto -> any key containing the sensor name
-    # FEATURE: intensity            # per-point field used as the 4th channel
+    FEATURE: auto       # per-point field used as the 4th channel; auto -> intensity (LiDAR) / doppler (radar);
+                        # none -> all zeros, x/y/z only (set with INPUT_FEATURE=none in the job scripts)
     # INTENSITY_TRANSFORM: log1p    # ouster default; none for livox and radar
 
 # Forward-facing range, as in the paper: the labels only cover the Livox field of view, so a 360-degree crop

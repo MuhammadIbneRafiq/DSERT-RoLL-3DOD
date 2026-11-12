@@ -26,6 +26,7 @@ CKPT="${CKPT:?set CKPT to the checkpoint to evaluate}"
 SENSOR="${SENSOR:?set SENSOR to the input sensor (livox | radar)}"
 NAME="${NAME:?set NAME, e.g. livox_e20_on_radar}"
 CFG="${CFG:-cfgs/det_model_cfgs/dsert/lidar_only.yaml}"
+INPUT_FEATURE="${INPUT_FEATURE:-}"   # 4th point channel: empty = sensor default | none = x/y/z only (must match training)
 WANDB_PROJECT="${WANDB_PROJECT-dsert-single-sensor}"
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -49,7 +50,8 @@ WANDB_ARGS=()
 [ -n "$WANDB_PROJECT" ] && WANDB_ARGS=(--wandb_project "$WANDB_PROJECT")
 python test.py --cfg_file "$CFG" --ckpt "$CKPT" --extra_tag "$NAME" --batch_size 16 \
     --workers $(( ${SLURM_CPUS_PER_TASK:-16} - 2 )) "${WANDB_ARGS[@]}" \
-    --set DATA_CONFIG.DATA_PATH "$DATA_ROOT" DATA_CONFIG.SENSOR.NAME "$SENSOR"
+    --set DATA_CONFIG.DATA_PATH "$DATA_ROOT" DATA_CONFIG.SENSOR.NAME "$SENSOR" \
+    ${INPUT_FEATURE:+DATA_CONFIG.SENSOR.FEATURE "$INPUT_FEATURE"}
 
 OUT_DIR="$REPO_ROOT/detection/output/$(dirname "${CFG#cfgs/}")/$(basename "$CFG" .yaml)/$NAME"
 LOG=$(ls -t "$OUT_DIR"/eval/epoch_*/val/log_eval_*.txt | head -1)

@@ -25,6 +25,7 @@ TAG="${TAG:?set TAG to the run to evaluate, e.g. livox_pretrain}"
 SENSOR="${SENSOR:?set SENSOR to the sensor the run was trained on (livox | radar)}"
 CFG="${CFG:-cfgs/det_model_cfgs/dsert/lidar_only.yaml}"
 EVAL_EPOCHS="${EVAL_EPOCHS:-}"
+INPUT_FEATURE="${INPUT_FEATURE:-}"   # 4th point channel: empty = sensor default | none = x/y/z only (must match training)
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
 # shellcheck disable=SC1091
@@ -48,7 +49,8 @@ for e in $EVAL_EPOCHS; do
     echo "==> epoch $e"
     python test.py --cfg_file "$CFG" --ckpt "$RUN_DIR/ckpt/checkpoint_epoch_$e.pth" --extra_tag "$TAG" \
         --batch_size 16 --workers 14 \
-        --set DATA_CONFIG.DATA_PATH "$DATA_ROOT" DATA_CONFIG.SENSOR.NAME "$SENSOR"
+        --set DATA_CONFIG.DATA_PATH "$DATA_ROOT" DATA_CONFIG.SENSOR.NAME "$SENSOR" \
+        ${INPUT_FEATURE:+DATA_CONFIG.SENSOR.FEATURE "$INPUT_FEATURE"}
 done
 
 echo ""

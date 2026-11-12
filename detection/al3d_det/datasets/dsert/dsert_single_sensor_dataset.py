@@ -18,6 +18,8 @@ SENSOR_DEFAULTS = {
 }
 LIVOX_FOLDER = 'LIDAR_LIVOX_Tilted'
 FEATURE_FALLBACKS = ['intensity', 'reflectivity', 'signal', 'doppler']
+# SENSOR.FEATURE: none -> the 4th channel is all zeros, so the model sees x, y, z only (geometry-only ablation)
+NO_FEATURE = ('none', 'zeros', 'xyz')
 SENTINEL_POINT = np.array([[10.0, 0.0, 0.0, 0.0]], dtype=np.float32)
 
 
@@ -76,20 +78,32 @@ class DSERTSingleSensorDataset(DSERTTrainingDataset):
             raise FileNotFoundError('%s frame not found: %s' % (self.sensor_name, first_path))
         raw = np.load(first_path)
         names = raw.dtype.names
-        if names is not None:
-            wanted = [self.sensor_opts['FEATURE']] + FEATURE_FALLBACKS
-            self._feature_name = next((f for f in wanted if f in names), '')
+        if names is not None or self._xyz_only():
+            self._feature_name = self._pick_feature(names or ())
 
         if self.logger is not None:
-            if names is not None and self._feature_name != self.sensor_opts['FEATURE']:
+            if self._xyz_only():
+                self.logger.info('%s points: SENSOR.FEATURE=%s, the 4th channel is all zeros (x, y, z only)'
+                                 % (self.sensor_name, self.sensor_opts['FEATURE']))
+            elif names is not None and self._feature_name != self.sensor_opts['FEATURE']:
                 self.logger.warning('%s points have fields %s; using "%s" as the 4th channel'
                                     % (self.sensor_name, names, self._feature_name or 'zeros'))
             path_desc = ('derived from livox_path by swapping in %s' % self.sensor_opts['FOLDER']
                          if self._derive_path_from_livox else 'info["sensor"]["%s"]' % self.sensor_opts['PATH_KEY'])
-            self.logger.info('Single-sensor dataset: sensor=%s, path=%s, calib=%s, intensity transform=%s'
+            self.logger.info('Single-sensor dataset: sensor=%s, path=%s, calib=%s, 4th channel=%s, intensity transform=%s'
                              % (self.sensor_name, path_desc, self.sensor_opts['CALIB_NAME'],
-                                self.sensor_opts['INTENSITY_TRANSFORM']))
+                                self._feature_name or 'zeros', self.sensor_opts['INTENSITY_TRANSFORM']))
             self.logger.info('%s -> Livox transform (first frame):\n%s' % (self.sensor_name, np.array2string(T, precision=4)))
+
+    def _xyz_only(self):
+        return str(self.sensor_opts['FEATURE']).lower() in NO_FEATURE
+
+    def _pick_feature(self, names):
+        """The stored field used as the 4th channel ('' = zeros): SENSOR.FEATURE, else the first fallback present."""
+        if self._xyz_only():
+            return ''
+        wanted = [self.sensor_opts['FEATURE']] + FEATURE_FALLBACKS
+        return next((f for f in wanted if f in names), '')
 
     def sensor_rel_path(self, info):
         if self._derive_path_from_livox:
@@ -132,13 +146,12 @@ class DSERTSingleSensorDataset(DSERTTrainingDataset):
             return np.zeros((0, 4), dtype=np.float32)
         if raw.dtype.names is not None:
             if self._feature_name is None:
-                wanted = [self.sensor_opts['FEATURE']] + FEATURE_FALLBACKS
-                self._feature_name = next((f for f in wanted if f in raw.dtype.names), '')
+                self._feature_name = self._pick_feature(raw.dtype.names)
             feat = raw[self._feature_name] if self._feature_name else np.zeros(raw.shape[0])
             pts = np.stack([raw['x'], raw['y'], raw['z'], feat], -1)
         else:
             arr = raw.reshape(-1, raw.shape[-1])
-            feat = arr[:, 3] if arr.shape[1] > 3 else np.zeros(arr.shape[0])
+            feat = arr[:, 3] if (arr.shape[1] > 3 and not self._xyz_only()) else np.zeros(arr.shape[0])
             pts = np.concatenate([arr[:, :3], feat[:, None]], -1)
         pts = pts.astype(np.float32)
         # Organized LiDAR scans (Ouster) store missing returns as zeros or NaNs.

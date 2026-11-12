@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# The reverse of finetune_from_best.sbatch: pretrain on radar, fine-tune on LiDAR, and evaluate before and after.
-# One job, five steps. Every step is skipped if its result is already on disk, so re-submitting the same command
-# after a time-out (or with a radar run that already finished) continues where it stopped.
+# The reverse of finetune_from_best.sbatch: take the finished radar run, fine-tune it on LiDAR, and evaluate before
+# and after. One job, four steps. Every step is skipped if its result is already on disk, so re-submitting the same
+# command after a time-out continues where it stopped. The radar run itself is not trained here: the job stops if
+# <SOURCE_TAG>/ckpt/checkpoint_epoch_<REQUIRE_EPOCH>.pth is missing.
 #
-#   1) radar pretraining            -> <SOURCE_TAG>/ckpt/                  skipped if checkpoint_epoch_<REQUIRE_EPOCH>.pth exists
-#   2) evaluate its checkpoints on radar, pick the best (mean Level-1 AP)  -> <SOURCE_TAG>/best_checkpoint.json
-#   3) BEFORE fine-tuning: that radar checkpoint evaluated on LiDAR as is  -> <SOURCE_SENSOR>_e<N>_on_<TARGET_SENSOR>/eval/
-#   4) fine-tune on LiDAR from that checkpoint                             -> <TARGET_TAG>/ckpt/
-#   5) AFTER fine-tuning: evaluate its checkpoints on LiDAR, pick the best -> <TARGET_TAG>/best_checkpoint.json
+#   1) evaluate the radar checkpoints on radar, pick the best (mean Level-1 AP) -> <SOURCE_TAG>/best_checkpoint.json
+#   2) BEFORE fine-tuning: that radar checkpoint evaluated on LiDAR as is  -> <SOURCE_SENSOR>_e<N>_on_<TARGET_SENSOR>/eval/
+#   3) fine-tune on LiDAR from that checkpoint                             -> <TARGET_TAG>/ckpt/
+#   4) AFTER fine-tuning: evaluate its checkpoints on LiDAR, pick the best -> <TARGET_TAG>/best_checkpoint.json
 #
 # and a three-line summary at the end of the slurm-*.out file. All folders are under
 # detection/output/det_model_cfgs/dsert/lidar_only/.
@@ -17,20 +17,24 @@
 #
 #   sbatch --export=ALL,DATA_ROOT=$HOME/data/dsert_roll detection/tools/scripts/snellius/radar_to_lidar.sbatch
 #
-#   # a radar run that already finished under another tag (step 1 is skipped, so a shorter limit is enough)
-#   sbatch --time=16:00:00 --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SOURCE_TAG=<tag> detection/tools/scripts/snellius/radar_to_lidar.sbatch
+#   # a radar run saved under another tag
+#   sbatch --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SOURCE_TAG=<tag> detection/tools/scripts/snellius/radar_to_lidar.sbatch
 #
-#   # extra fine-tuning seeds (works in either direction; steps 1-3 are already on disk, so only 4-5 run).
+#   # extra fine-tuning seeds (works in either direction; steps 1-2 are already on disk, so only 3-4 run).
 #   # SEED=1 goes to <TARGET_SENSOR>_ft_from_<SOURCE_SENSOR>_s1; the unseeded first run keeps its old tag.
 #   sbatch --time=16:00:00 --job-name=ft_radar2livox_s1 --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SEED=1 detection/tools/scripts/snellius/radar_to_lidar.sbatch
 #   sbatch --time=16:00:00 --job-name=ft_livox2radar_s1 --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SEED=1,SOURCE_TAG=livox_pretrain,SOURCE_SENSOR=livox,TARGET_SENSOR=radar detection/tools/scripts/snellius/radar_to_lidar.sbatch
 #
+#   # geometry only: the target sensor's 4th channel set to zeros (run names get _xyz)
+#   sbatch ... --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SEED=1,INPUT_FEATURE=none,SOURCE_TAG=livox_pretrain,SOURCE_SENSOR=livox,TARGET_SENSOR=radar ...
+#
 # Settings: SOURCE_TAG (radar_scratch), SOURCE_SENSOR (radar), TARGET_SENSOR (livox), TARGET_TAG
-# (<TARGET_SENSOR>_ft_from_<SOURCE_SENSOR>[_s<SEED>]), SEED (unset; fine-tuning only), REQUIRE_EPOCH (20). Training
+# (<TARGET_SENSOR>_ft_from_<SOURCE_SENSOR>[_xyz][_s<SEED>]), SEED (unset; fine-tuning only), INPUT_FEATURE (empty =
+# sensor default; none = x/y/z only; target sensor only), STOP_AFTER_ZERO (0; 1 = steps 1-2 only), REQUIRE_EPOCH (20). Training
 # settings (AMP, COMPILE, PRETRAINED_SCOPE, WANDB_PROJECT, ...) are passed through to train_single_sensor.sbatch.
 #
-# Time: two 20-epoch trainings plus 11 evaluations. Snellius reserves (time limit x 192 SBU/h) when the job starts,
-# so lower --time when step 1 is already done.
+# Time: one 20-epoch training plus up to 11 evaluations. Snellius reserves (time limit x 192 SBU/h) when the job
+# starts, so keep --time realistic.
 #
 #SBATCH --job-name=radar2lidar
 #SBATCH --partition=gpu_h100
@@ -39,7 +43,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --constraint=scratch-node
-#SBATCH --time=1-12:00:00
+#SBATCH --time=16:00:00
 #SBATCH --output=slurm-%x-%j.out
 
 set -euo pipefail
@@ -49,8 +53,19 @@ DATA_ROOT="${DATA_ROOT:?set DATA_ROOT}"
 SOURCE_TAG="${SOURCE_TAG:-radar_scratch}"
 SOURCE_SENSOR="${SOURCE_SENSOR:-radar}"
 TARGET_SENSOR="${TARGET_SENSOR:-livox}"
-TARGET_TAG="${TARGET_TAG:-${TARGET_SENSOR}_ft_from_${SOURCE_SENSOR}${SEED:+_s$SEED}}"
+# 4th point channel of the TARGET sensor (steps 2-4 only; the source model is always evaluated with its own default):
+# empty = default (radar doppler, LiDAR intensity), none = zeros (x/y/z only), or a stored field such as power.
+# A non-default feature is part of the run names (e.g. radar_ft_from_livox_xyz_s1, livox_e20_on_radar_xyz).
+FT_FEATURE="${INPUT_FEATURE:-}"
+unset INPUT_FEATURE
+case "$(echo "$FT_FEATURE" | tr '[:upper:]' '[:lower:]')" in
+    "") FEAT_SUFFIX="" ;;
+    none|zeros|xyz) FEAT_SUFFIX="_xyz" ;;
+    *) FEAT_SUFFIX="_$FT_FEATURE" ;;
+esac
+TARGET_TAG="${TARGET_TAG:-${TARGET_SENSOR}_ft_from_${SOURCE_SENSOR}${FEAT_SUFFIX}${SEED:+_s$SEED}}"
 REQUIRE_EPOCH="${REQUIRE_EPOCH:-20}"
+STOP_AFTER_ZERO="${STOP_AFTER_ZERO:-0}"      # 1 = only steps 1-2 (select the source checkpoint, zero-shot evaluation)
 CFG="${CFG:-cfgs/det_model_cfgs/dsert/lidar_only.yaml}"
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -62,7 +77,7 @@ TARGET_DIR="$OUT_BASE/$TARGET_TAG"
 # These belong to the individual steps; a value exported at submit time must not leak into all of them.
 unset EPOCHS EVAL_EPOCHS TAG SENSOR NAME CKPT SMOKE
 FT_PRETRAINED_SCOPE="${PRETRAINED_SCOPE:-encoder}"
-# The seed is for the fine-tuning only (step 4); the pretraining run in step 1 stays the shared, unseeded one.
+# The seed is for the fine-tuning only (step 3); the pretraining run stays the shared, unseeded one.
 FT_SEED="${SEED:-}"
 unset SEED
 
@@ -77,14 +92,15 @@ not_evaluated() {
         grep -qs "LEVEL_1/AP" "$dir/eval/epoch_$e/val/"log_eval_*.txt || printf '%s ' "$e"
     done
 }
-# Evaluate the saved checkpoints of run <tag> on <sensor> (only the ones not evaluated yet) and print the best one.
+# Evaluate the saved checkpoints of run <tag> on <sensor> with 4th channel <feature> (only the ones not evaluated
+# yet) and print the best one.
 eval_and_select() {
-    local tag=$1 sensor=$2 dir="$OUT_BASE/$1" epochs todo
+    local tag=$1 sensor=$2 feature=$3 dir="$OUT_BASE/$1" epochs todo
     epochs=$(saved_epochs "$dir")
     # shellcheck disable=SC2086
     todo=$(not_evaluated "$dir" $epochs)
     if [ -n "$todo" ]; then
-        DATA_ROOT="$DATA_ROOT" TAG="$tag" SENSOR="$sensor" EVAL_EPOCHS="$todo" CFG="$CFG" \
+        DATA_ROOT="$DATA_ROOT" TAG="$tag" SENSOR="$sensor" EVAL_EPOCHS="$todo" CFG="$CFG" INPUT_FEATURE="$feature" \
             bash "$SNELLIUS_DIR/eval_epochs.sbatch" >&2
     else
         echo "    epochs $epochs already evaluated" >&2
@@ -97,49 +113,46 @@ eval_and_select() {
 source "$SNELLIUS_DIR/snellius_env.sh"
 activate_env
 
-# ---- 1) pretrain on the source sensor -----------------------------------------------------------------------
-if [ -f "$SOURCE_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth" ]; then
-    echo "==> [1/5] $SOURCE_TAG already has epoch $REQUIRE_EPOCH: skipping pretraining"
-else
-    echo "==> [1/5] pretraining $SOURCE_TAG on $SOURCE_SENSOR from scratch"
-    DATA_ROOT="$DATA_ROOT" SENSOR="$SOURCE_SENSOR" TAG="$SOURCE_TAG" PRETRAINED="" CFG="$CFG" \
-        bash "$SNELLIUS_DIR/train_single_sensor.sbatch"
-    [ -f "$SOURCE_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth" ] || {
-        echo "ERROR: $SOURCE_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth missing after pretraining" >&2; exit 1; }
-fi
+[ -f "$SOURCE_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth" ] || {
+    echo "ERROR: $SOURCE_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth missing: set SOURCE_TAG to the finished $SOURCE_SENSOR run" >&2; exit 1; }
 
-# ---- 2) evaluate the pretraining checkpoints on the source sensor, pick the best ---------------------------
-echo "==> [2/5] evaluating $SOURCE_TAG on val ($SOURCE_SENSOR) and selecting the best checkpoint"
-BEST=$(eval_and_select "$SOURCE_TAG" "$SOURCE_SENSOR")
+# ---- 1) evaluate the pretraining checkpoints on the source sensor, pick the best ---------------------------
+echo "==> [1/4] evaluating $SOURCE_TAG on val ($SOURCE_SENSOR) and selecting the best checkpoint"
+BEST=$(eval_and_select "$SOURCE_TAG" "$SOURCE_SENSOR" "")
 [ -f "$BEST" ] || { echo "ERROR: selection did not return a checkpoint" >&2; exit 1; }
 BEST_EPOCH=$(basename "$BEST" .pth); BEST_EPOCH="${BEST_EPOCH##*_}"
 echo "==> selected: $BEST"
 
-# ---- 3) before fine-tuning: the source checkpoint fed the target sensor ------------------------------------
-ZERO_NAME="${SOURCE_SENSOR}_e${BEST_EPOCH}_on_${TARGET_SENSOR}"
+# ---- 2) before fine-tuning: the source checkpoint fed the target sensor ------------------------------------
+ZERO_NAME="${SOURCE_SENSOR}_e${BEST_EPOCH}_on_${TARGET_SENSOR}${FEAT_SUFFIX}"
 ZERO_DIR="$OUT_BASE/$ZERO_NAME"
 if [ -z "$(not_evaluated "$ZERO_DIR" "$BEST_EPOCH")" ]; then
-    echo "==> [3/5] $ZERO_NAME already evaluated: skipping"
+    echo "==> [2/4] $ZERO_NAME already evaluated: skipping"
 else
-    echo "==> [3/5] before fine-tuning: $SOURCE_TAG epoch $BEST_EPOCH evaluated on $TARGET_SENSOR"
-    DATA_ROOT="$DATA_ROOT" SENSOR="$TARGET_SENSOR" NAME="$ZERO_NAME" CKPT="$BEST" CFG="$CFG" \
+    echo "==> [2/4] before fine-tuning: $SOURCE_TAG epoch $BEST_EPOCH evaluated on $TARGET_SENSOR (4th channel: ${FT_FEATURE:-default})"
+    DATA_ROOT="$DATA_ROOT" SENSOR="$TARGET_SENSOR" NAME="$ZERO_NAME" CKPT="$BEST" CFG="$CFG" INPUT_FEATURE="$FT_FEATURE" \
         bash "$SNELLIUS_DIR/eval_ckpt.sbatch"
 fi
+if [ "$STOP_AFTER_ZERO" = "1" ]; then
+    echo "==> STOP_AFTER_ZERO=1: done after step 2 ($ZERO_DIR)"
+    exit 0
+fi
 
-# ---- 4) fine-tune on the target sensor ----------------------------------------------------------------------
+# ---- 3) fine-tune on the target sensor ----------------------------------------------------------------------
 if [ -f "$TARGET_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth" ]; then
-    echo "==> [4/5] $TARGET_TAG already has epoch $REQUIRE_EPOCH: skipping fine-tuning"
+    echo "==> [3/4] $TARGET_TAG already has epoch $REQUIRE_EPOCH: skipping fine-tuning"
 else
-    echo "==> [4/5] fine-tuning $TARGET_TAG on $TARGET_SENSOR from $BEST (scope: $FT_PRETRAINED_SCOPE, seed: ${FT_SEED:-unset})"
+    echo "==> [3/4] fine-tuning $TARGET_TAG on $TARGET_SENSOR from $BEST (scope: $FT_PRETRAINED_SCOPE, seed: ${FT_SEED:-unset}, 4th channel: ${FT_FEATURE:-default})"
     DATA_ROOT="$DATA_ROOT" SENSOR="$TARGET_SENSOR" TAG="$TARGET_TAG" PRETRAINED="$BEST" SEED="$FT_SEED" \
-        PRETRAINED_SCOPE="$FT_PRETRAINED_SCOPE" CFG="$CFG" bash "$SNELLIUS_DIR/train_single_sensor.sbatch"
+        PRETRAINED_SCOPE="$FT_PRETRAINED_SCOPE" CFG="$CFG" INPUT_FEATURE="$FT_FEATURE" \
+        bash "$SNELLIUS_DIR/train_single_sensor.sbatch"
     [ -f "$TARGET_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth" ] || {
         echo "ERROR: $TARGET_DIR/ckpt/checkpoint_epoch_${REQUIRE_EPOCH}.pth missing after fine-tuning" >&2; exit 1; }
 fi
 
-# ---- 5) after fine-tuning: evaluate the fine-tuned checkpoints on the target sensor -------------------------
-echo "==> [5/5] after fine-tuning: evaluating $TARGET_TAG on val ($TARGET_SENSOR)"
-FT_BEST=$(eval_and_select "$TARGET_TAG" "$TARGET_SENSOR")
+# ---- 4) after fine-tuning: evaluate the fine-tuned checkpoints on the target sensor -------------------------
+echo "==> [4/4] after fine-tuning: evaluating $TARGET_TAG on val ($TARGET_SENSOR)"
+FT_BEST=$(eval_and_select "$TARGET_TAG" "$TARGET_SENSOR" "$FT_FEATURE")
 [ -f "$FT_BEST" ] || { echo "ERROR: selection did not return a checkpoint" >&2; exit 1; }
 
 # ---- summary ------------------------------------------------------------------------------------------------

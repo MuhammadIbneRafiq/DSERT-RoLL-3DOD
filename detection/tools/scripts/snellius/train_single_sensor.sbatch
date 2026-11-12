@@ -46,6 +46,8 @@ SKIP_EVAL="${SKIP_EVAL:-0}"                      # 1 = skip the Waymo-AP evaluat
 STAGE="${STAGE:-auto}"                           # auto = copy data to node-local NVMe when the node has it | 1 | 0
 WANDB_PROJECT="${WANDB_PROJECT-dsert-single-sensor}"   # Weights & Biases project; WANDB_PROJECT= (empty) turns it off
 SEED="${SEED:-}"                                 # integer = seeded run (init, augmentation, data order); empty = unseeded
+INPUT_FEATURE="${INPUT_FEATURE:-}"               # 4th point channel: empty = sensor default (radar doppler, LiDAR
+                                                 # intensity) | none = zeros, x/y/z only | a stored field, e.g. power
 EXTRA_ARGS="${EXTRA_ARGS:-}"                     # anything else for train_mm.py (before --set)
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -99,7 +101,8 @@ fi
 if [ "$PREFLIGHT" = "1" ]; then
     echo "==> preflight"
     python preflight_single_sensor.py --cfg_file "$CFG" --num_frames 20 --plot_dir "../output/preflight/${TAG}" \
-        --set DATA_CONFIG.DATA_PATH "$DATA_ROOT" DATA_CONFIG.SENSOR.NAME "$SENSOR"
+        --set DATA_CONFIG.DATA_PATH "$DATA_ROOT" DATA_CONFIG.SENSOR.NAME "$SENSOR" \
+        ${INPUT_FEATURE:+DATA_CONFIG.SENSOR.FEATURE "$INPUT_FEATURE"}
 fi
 
 # ---- stage data to node-local NVMe ($TMPDIR is on /scratch-node only with --constraint=scratch-node) ----
@@ -124,6 +127,7 @@ fi
 
 # ---- config overrides -------------------------------------------------------------------------------------
 SETS=(DATA_CONFIG.DATA_PATH "$RUN_DATA" DATA_CONFIG.SENSOR.NAME "$SENSOR")
+[ -n "$INPUT_FEATURE" ] && SETS+=(DATA_CONFIG.SENSOR.FEATURE "$INPUT_FEATURE")
 # ~1% of frames for train and val: exercises data, AMP, compile, checkpointing and evaluation.
 [ "$SMOKE" = "1" ] && SETS+=(DATA_CONFIG.SAMPLED_INTERVAL.train 100 DATA_CONFIG.SAMPLED_INTERVAL.test 100)
 TRAIN_ARGS=(--launcher pytorch --cfg_file "$CFG" --extra_tag "$TAG" --workers "$WORKERS"
