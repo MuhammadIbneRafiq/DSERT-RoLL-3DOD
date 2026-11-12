@@ -28,8 +28,12 @@
 #   # geometry only: the target sensor's 4th channel set to zeros (run names get _xyz)
 #   sbatch ... --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SEED=1,INPUT_FEATURE=none,SOURCE_TAG=livox_pretrain,SOURCE_SENSOR=livox,TARGET_SENSOR=radar ...
 #
-# Settings: SOURCE_TAG (radar_scratch), SOURCE_SENSOR (radar), TARGET_SENSOR (livox), TARGET_TAG
-# (<TARGET_SENSOR>_ft_from_<SOURCE_SENSOR>[_xyz][_s<SEED>]), SEED (unset; fine-tuning only), INPUT_FEATURE (empty =
+#   # radar -> LiDAR from a radar run trained without Doppler (run names get radarxyz, e.g. livox_ft_from_radarxyz_s1)
+#   sbatch ... --export=ALL,DATA_ROOT=$HOME/data/dsert_roll,SEED=1,SOURCE_TAG=radar_scratch_xyz_s1,SOURCE_FEATURE=none ...
+#
+# Settings: SOURCE_TAG (radar_scratch), SOURCE_SENSOR (radar), SOURCE_FEATURE (empty = default; none = the source run
+# was trained x/y/z only), TARGET_SENSOR (livox), TARGET_TAG
+# (<TARGET_SENSOR>_ft_from_<SOURCE_SENSOR>[xyz][_xyz][_s<SEED>]), SEED (unset; fine-tuning only), INPUT_FEATURE (empty =
 # sensor default; none = x/y/z only; target sensor only), STOP_AFTER_ZERO (0; 1 = steps 1-2 only), REQUIRE_EPOCH (20). Training
 # settings (AMP, COMPILE, PRETRAINED_SCOPE, WANDB_PROJECT, ...) are passed through to train_single_sensor.sbatch.
 #
@@ -63,7 +67,16 @@ case "$(echo "$FT_FEATURE" | tr '[:upper:]' '[:lower:]')" in
     none|zeros|xyz) FEAT_SUFFIX="_xyz" ;;
     *) FEAT_SUFFIX="_$FT_FEATURE" ;;
 esac
-TARGET_TAG="${TARGET_TAG:-${TARGET_SENSOR}_ft_from_${SOURCE_SENSOR}${FEAT_SUFFIX}${SEED:+_s$SEED}}"
+# 4th point channel the SOURCE run was trained with (step 1 only; must match its training): empty = default,
+# none = zeros (e.g. SOURCE_TAG=radar_scratch_xyz_s1). A non-default source is part of the run names
+# (radarxyz: livox_ft_from_radarxyz_s1, radarxyz_e20_on_livox).
+SRC_FEATURE="${SOURCE_FEATURE:-}"
+case "$(echo "$SRC_FEATURE" | tr '[:upper:]' '[:lower:]')" in
+    "") SRC_SUFFIX="" ;;
+    none|zeros|xyz) SRC_SUFFIX="xyz" ;;
+    *) SRC_SUFFIX="$SRC_FEATURE" ;;
+esac
+TARGET_TAG="${TARGET_TAG:-${TARGET_SENSOR}_ft_from_${SOURCE_SENSOR}${SRC_SUFFIX}${FEAT_SUFFIX}${SEED:+_s$SEED}}"
 REQUIRE_EPOCH="${REQUIRE_EPOCH:-20}"
 STOP_AFTER_ZERO="${STOP_AFTER_ZERO:-0}"      # 1 = only steps 1-2 (select the source checkpoint, zero-shot evaluation)
 CFG="${CFG:-cfgs/det_model_cfgs/dsert/lidar_only.yaml}"
@@ -118,13 +131,13 @@ activate_env
 
 # ---- 1) evaluate the pretraining checkpoints on the source sensor, pick the best ---------------------------
 echo "==> [1/4] evaluating $SOURCE_TAG on val ($SOURCE_SENSOR) and selecting the best checkpoint"
-BEST=$(eval_and_select "$SOURCE_TAG" "$SOURCE_SENSOR" "")
+BEST=$(eval_and_select "$SOURCE_TAG" "$SOURCE_SENSOR" "$SRC_FEATURE")
 [ -f "$BEST" ] || { echo "ERROR: selection did not return a checkpoint" >&2; exit 1; }
 BEST_EPOCH=$(basename "$BEST" .pth); BEST_EPOCH="${BEST_EPOCH##*_}"
 echo "==> selected: $BEST"
 
 # ---- 2) before fine-tuning: the source checkpoint fed the target sensor ------------------------------------
-ZERO_NAME="${SOURCE_SENSOR}_e${BEST_EPOCH}_on_${TARGET_SENSOR}${FEAT_SUFFIX}"
+ZERO_NAME="${SOURCE_SENSOR}${SRC_SUFFIX}_e${BEST_EPOCH}_on_${TARGET_SENSOR}${FEAT_SUFFIX}"
 ZERO_DIR="$OUT_BASE/$ZERO_NAME"
 if [ -z "$(not_evaluated "$ZERO_DIR" "$BEST_EPOCH")" ]; then
     echo "==> [2/4] $ZERO_NAME already evaluated: skipping"

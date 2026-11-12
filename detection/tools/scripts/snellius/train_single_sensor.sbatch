@@ -49,6 +49,10 @@ SEED="${SEED:-}"                                 # integer = seeded run (init, a
 INPUT_FEATURE="${INPUT_FEATURE:-}"               # 4th point channel: empty = sensor default (radar doppler, LiDAR
                                                  # intensity) | none = zeros, x/y/z only | a stored field, e.g. power
 EXTRA_ARGS="${EXTRA_ARGS:-}"                     # anything else for train_mm.py (before --set)
+EXTRA_SETS="${EXTRA_SETS:-}"                     # extra config overrides "KEY value KEY value ...", added to --set.
+                                                 # A value must not contain spaces. Values with commas cannot go
+                                                 # through --export=: set the variable before sbatch instead, e.g.
+                                                 #   EXTRA_SETS='MODEL.X.Y [1.0,2.0]' sbatch --export=ALL,... this.sbatch
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
 [ -f "$SNELLIUS_DIR/snellius_env.sh" ] || { echo "Submit from the repository root (REPO_ROOT=$REPO_ROOT)" >&2; exit 1; }
@@ -130,6 +134,8 @@ SETS=(DATA_CONFIG.DATA_PATH "$RUN_DATA" DATA_CONFIG.SENSOR.NAME "$SENSOR")
 [ -n "$INPUT_FEATURE" ] && SETS+=(DATA_CONFIG.SENSOR.FEATURE "$INPUT_FEATURE")
 # ~1% of frames for train and val: exercises data, AMP, compile, checkpointing and evaluation.
 [ "$SMOKE" = "1" ] && SETS+=(DATA_CONFIG.SAMPLED_INTERVAL.train 100 DATA_CONFIG.SAMPLED_INTERVAL.test 100)
+# shellcheck disable=SC2206
+if [ -n "$EXTRA_SETS" ]; then set -f; SETS+=($EXTRA_SETS); set +f; fi   # set -f: [1.0,2.0] is a value, not a file pattern
 TRAIN_ARGS=(--launcher pytorch --cfg_file "$CFG" --extra_tag "$TAG" --workers "$WORKERS"
             --amp "$AMP" --find_unused_parameters --max_ckpt_save_num 5)
 [ "$COMPILE" = "1" ] && TRAIN_ARGS+=(--compile)
