@@ -1,11 +1,13 @@
 #!/bin/bash
 #
-# Step 2 of 2 of the one-time setup: compile the repo's CUDA ops for H100 and self-test the model on the GPU.
+# Step 2 of 2 of the one-time setup: compile the repo's 
+# CUDA ops for H100 and self-test the model on the GPU.
 # Run after setup_env.sh, from the repository root:
 #
 #   sbatch detection/tools/scripts/snellius/build_ops.sbatch
 #
-# Kept under 1 hour so Slurm can place it on the nodes reserved for short jobs (shorter queue). Re-run it
+# Kept under 1 hour so Slurm can place it on the nodes reserved 
+# for short jobs (shorter queue). Re-run it
 # whenever the C++/CUDA sources under utils/al3d_utils/ops change.
 #
 #SBATCH --job-name=dsert-build

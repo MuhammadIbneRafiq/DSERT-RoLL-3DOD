@@ -1,22 +1,5 @@
 #!/bin/bash
 #
-# Single-sensor (LiDAR or radar) CenterPoint + LoGoHead on DSERT-RoLL. 1 node, 1 H100 (a quarter node:
-# 16 cores, 180 GiB RAM). No cameras, no radar branch. Mixed precision + torch.compile on the dense layers + TF32.
-#
-# One-time setup first: setup_env.sh on a login node, then `sbatch .../build_ops.sbatch`.
-# Submit from the repository root:
-#
-#   # 1) smoke test: ~1% of the data, 2 epochs. Do this first and note the it/s it reports.
-#   #    (a time limit <= 1 hour puts it on the nodes reserved for short jobs, so it starts sooner)
-#   sbatch --time=01:00:00 --export=ALL,DATA_ROOT=/path/to/dsert_roll,SMOKE=1 detection/tools/scripts/snellius/train_single_sensor.sbatch
-#
-#   # 2) full pretraining run (24 h limit by default; a full 20-epoch run takes roughly 7-9 h on one H100)
-#   sbatch --export=ALL,DATA_ROOT=/path/to/dsert_roll,TAG=ouster_pretrain detection/tools/scripts/snellius/train_single_sensor.sbatch
-#
-#   # 3) later: radar fine-tuning from the Ouster checkpoint, and the radar-from-scratch baseline
-#   sbatch --export=ALL,DATA_ROOT=...,SENSOR=radar,TAG=radar_ft_from_ouster,PRETRAINED=<ckpt.pth> ...
-#   sbatch --export=ALL,DATA_ROOT=...,SENSOR=radar,TAG=radar_scratch ...
-#
 # Data: keep the dataset permanently in your home or project space (NOT /scratch-shared or /scratch-local, which
 # delete files after 14 / 6 days). The job asks for a node with local NVMe (--constraint=scratch-node; only some
 # H100 nodes have one), copies the labels and this sensor's frames there, and trains from that copy. The copy
@@ -62,6 +45,7 @@ PREFLIGHT="${PREFLIGHT:-1}"                      # 1 = run preflight_single_sens
 SKIP_EVAL="${SKIP_EVAL:-0}"                      # 1 = skip the Waymo-AP evaluation after training
 STAGE="${STAGE:-auto}"                           # auto = copy data to node-local NVMe when the node has it | 1 | 0
 WANDB_PROJECT="${WANDB_PROJECT-dsert-single-sensor}"   # Weights & Biases project; WANDB_PROJECT= (empty) turns it off
+SEED="${SEED:-}"                                 # integer = seeded run (init, augmentation, data order); empty = unseeded
 EXTRA_ARGS="${EXTRA_ARGS:-}"                     # anything else for train_mm.py (before --set)
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -148,6 +132,7 @@ TRAIN_ARGS=(--launcher pytorch --cfg_file "$CFG" --extra_tag "$TAG" --workers "$
 [ -n "$EPOCHS" ] && TRAIN_ARGS+=(--epochs "$EPOCHS")
 [ -n "$PRETRAINED" ] && TRAIN_ARGS+=(--pretrained_model "$PRETRAINED" --pretrained_scope "$PRETRAINED_SCOPE")
 [ "$SKIP_EVAL" = "1" ] && TRAIN_ARGS+=(--skip_final_eval)
+[ -n "$SEED" ] && TRAIN_ARGS+=(--seed "$SEED")
 [ -n "$WANDB_PROJECT" ] && TRAIN_ARGS+=(--wandb_project "$WANDB_PROJECT")
 
 # ---- train (single process, single GPU) -------------------------------------------------------------------

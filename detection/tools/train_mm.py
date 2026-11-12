@@ -61,6 +61,9 @@ def parse_config():
     parser.add_argument('--wandb_entity', type=str, default=None, help='wandb user or team (default: your account)')
     parser.add_argument('--skip_final_eval', action='store_true', default=False,
                         help='do not run the evaluation that follows training')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='seed weight init, augmentation and the data order (cuDNN stays non-deterministic); '
+                             'unset = unseeded, as in the earlier runs')
 
     args = parser.parse_args()
     # torchrun passes the local rank through the environment rather than --local_rank.
@@ -157,6 +160,14 @@ def main():
 
     if args.fix_random_seed:
         common_utils.set_random_seed(666)
+    if args.seed is not None:
+        # Not common_utils.set_random_seed: that also turns cudnn.benchmark off, which slows training and would make
+        # these runs differ from the earlier (unseeded) ones in more than the seed.
+        import random
+        import numpy as np
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
 
     output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
     ckpt_dir = output_dir / 'ckpt'
@@ -193,10 +204,11 @@ def main():
         logger=logger,
         training=True,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        total_epochs=args.epochs
+        total_epochs=args.epochs,
+        seed=args.seed
     )
-    
-    
+
+
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set)
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
