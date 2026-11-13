@@ -34,7 +34,7 @@
 # Settings: SOURCE_TAG (radar_scratch), SOURCE_SENSOR (radar), SOURCE_FEATURE (empty = default; none = the source run
 # was trained x/y/z only), TARGET_SENSOR (livox), TARGET_TAG
 # (<TARGET_SENSOR>_ft_from_<SOURCE_SENSOR>[xyz][_xyz][_s<SEED>]), SEED (unset; fine-tuning only), INPUT_FEATURE (empty =
-# sensor default; none = x/y/z only; target sensor only), STOP_AFTER_ZERO (0; 1 = steps 1-2 only), REQUIRE_EPOCH (20). Training
+# sensor default; none = x/y/z only; target sensor only), STOP_AFTER_ZERO (0; 1 = steps 1-2 only), SKIP_ZERO (0; 1 = skip step 2), REQUIRE_EPOCH (20). Training
 # settings (AMP, COMPILE, PRETRAINED_SCOPE, WANDB_PROJECT, ...) are passed through to train_single_sensor.sbatch.
 #
 # Time: one 20-epoch training plus up to 11 evaluations. Snellius reserves (time limit x 192 SBU/h) when the job
@@ -79,6 +79,7 @@ esac
 TARGET_TAG="${TARGET_TAG:-${TARGET_SENSOR}_ft_from_${SOURCE_SENSOR}${SRC_SUFFIX}${FEAT_SUFFIX}${SEED:+_s$SEED}}"
 REQUIRE_EPOCH="${REQUIRE_EPOCH:-20}"
 STOP_AFTER_ZERO="${STOP_AFTER_ZERO:-0}"      # 1 = only steps 1-2 (select the source checkpoint, zero-shot evaluation)
+SKIP_ZERO="${SKIP_ZERO:-0}"                  # 1 = skip step 2 (the zero-shot evaluation) and go straight to fine-tuning
 CFG="${CFG:-cfgs/det_model_cfgs/dsert/lidar_only.yaml}"
 
 SNELLIUS_DIR="$REPO_ROOT/detection/tools/scripts/snellius"
@@ -139,7 +140,9 @@ echo "==> selected: $BEST"
 # ---- 2) before fine-tuning: the source checkpoint fed the target sensor ------------------------------------
 ZERO_NAME="${SOURCE_SENSOR}${SRC_SUFFIX}_e${BEST_EPOCH}_on_${TARGET_SENSOR}${FEAT_SUFFIX}"
 ZERO_DIR="$OUT_BASE/$ZERO_NAME"
-if [ -z "$(not_evaluated "$ZERO_DIR" "$BEST_EPOCH")" ]; then
+if [ "$SKIP_ZERO" = "1" ]; then
+    echo "==> [2/4] SKIP_ZERO=1: skipping the before-fine-tuning evaluation"
+elif [ -z "$(not_evaluated "$ZERO_DIR" "$BEST_EPOCH")" ]; then
     echo "==> [2/4] $ZERO_NAME already evaluated: skipping"
 else
     echo "==> [2/4] before fine-tuning: $SOURCE_TAG epoch $BEST_EPOCH evaluated on $TARGET_SENSOR (4th channel: ${FT_FEATURE:-default})"
@@ -187,6 +190,8 @@ def from_json(run_dir):
 
 def from_log(run_dir, epoch):
     logs = sorted(glob.glob(os.path.join(run_dir, 'eval', 'epoch_%s' % epoch, 'val', 'log_eval_*.txt')), key=os.path.getmtime)
+    if not logs:  # step 2 skipped (SKIP_ZERO=1) or failed
+        return {}
     return {AP_KEY.search(k).group(1): v for k, v in overall_block(logs[-1]).items() if AP_KEY.search(k)}
 
 print('\n==================== %s -> %s: Level-1 AP on val ====================' % (src, tgt))
