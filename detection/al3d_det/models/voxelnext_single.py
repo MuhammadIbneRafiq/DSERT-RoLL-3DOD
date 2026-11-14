@@ -67,11 +67,15 @@ class VoxelNeXtSingle(CenterPointPC):
         return 0
 
     def forward(self, batch_dict):
-        # Mixed precision covers the sparse backbone; the head (target assignment, decoding, NMS) runs in fp32.
-        with torch.autocast('cuda', dtype=self.amp_dtype or torch.float16, enabled=self.amp_dtype is not None):
+        # Mixed precision covers the sparse backbone during training only; the head (target assignment, decoding,
+        # NMS) always runs in fp32. Evaluation runs entirely in fp32: in eval mode spconv skips the autocast-aware
+        # autograd path, and the 5x5x5 strided convolutions then fail under autocast ("can't find suitable algorithm",
+        # seen on H100 with spconv 2.3). This also makes evaluation independent of the --amp setting used in training.
+        use_amp = self.training and self.amp_dtype is not None
+        with torch.autocast('cuda', dtype=self.amp_dtype or torch.float16, enabled=use_amp):
             for name in self.ENCODER_MODULES:
                 batch_dict = getattr(self, name)(batch_dict)
-        if self.amp_dtype is not None:
+        if use_amp:
             _cast_to_fp32(batch_dict)
 
         batch_dict = self.dense_head(batch_dict)

@@ -118,6 +118,28 @@ def compare(name, a, b, failures, atol=1e-4, rtol=1e-4):
         failures.append('%s: max diff %.3e' % (name, diff))
 
 
+@torch.no_grad()
+def calibrate_bn(backbone, head, feats, coords):
+    """Set every BatchNorm's running mean/var to the statistics of one batch (train-mode pass, cumulative average)."""
+    bns = [m for m in list(backbone.modules()) + list(head.modules()) if isinstance(m, torch.nn.BatchNorm1d)]
+    momenta = [m.momentum for m in bns]
+    for m in bns:
+        m.reset_running_stats()
+        m.momentum = None
+    backbone.train()
+    head.train()
+    bd = backbone({'batch_size': 2, 'voxel_features': feats.cuda().clone(), 'voxel_coords': coords.cuda().clone()})
+    for sep_head in head.heads_list:
+        sep_head(bd['encoded_spconv_tensor'])
+    for m, mom in zip(bns, momenta):
+        m.momentum = mom
+
+
+def score_ties(p):
+    s = p['pred_scores']
+    return int(len(s) - len(torch.unique(s)))
+
+
 def boxes_in_both(po, pr, tol=1e-3):
     """How many of po's boxes (box, score, label) also appear in pr, in any order."""
     def rows(p):
@@ -192,11 +214,17 @@ def main():
                 # An untrained IoU branch outputs values below -1, where OpenPCDet's score hm^(1-r) * ((iou+1)/2)^r
                 # is NaN and ours (clamped) is not. A trained one stays inside [-1, 1], where both are identical,
                 # so for the eval comparison fix the IoU output at 0.5 in both models (same weights).
-                for hd in (ours_hd, ref_hd):
-                    last = hd.heads_list[0].iou[-1]
-                    with torch.no_grad():
-                        last.weight.zero_()
-                        last.bias.fill_(0.5)
+                last = ours_hd.heads_list[0].iou[-1]
+                with torch.no_grad():
+                    last.weight.zero_()
+                    last.bias.fill_(0.5)
+                # Untrained BatchNorm running statistics (mean 0, var 1) leave eval-mode activations unnormalised, so
+                # the heat-map saturates at exactly 1.0 on many voxels and NMS faces exact score ties, whose order the
+                # GPU top-k/sort leaves undefined. Give the BN layers this batch's statistics first, then copy all
+                # weights and statistics into OpenPCDet's model so both stay identical.
+                calibrate_bn(ours_bb, ours_hd, feats, coords)
+                ref_bb.load_state_dict(ours_bb.state_dict(), strict=True)
+                ref_hd.load_state_dict(ours_hd.state_dict(), strict=True)
             for m in (ours_bb, ours_hd, ref_bb, ref_hd):
                 m.train(mode == 'train')
             outs = {}
@@ -233,10 +261,20 @@ def main():
                     br_same = ref_hd(same_input)
                 for b in range(2):
                     po, pr = bo['final_box_dicts'][b], br_same['final_box_dicts'][b]
-                    print('  frame %d, same head input: %d vs %d boxes' % (b, len(po['pred_boxes']),
-                                                                         len(pr['pred_boxes'])))
-                    for k in ('pred_boxes', 'pred_scores', 'pred_labels'):
-                        compare('frame %d %s' % (b, k), po[k], pr[k], failures)
+                    print('  frame %d, same head input: %d vs %d boxes, %d exact score ties'
+                          % (b, len(po['pred_boxes']), len(pr['pred_boxes']), score_ties(po)))
+                    # Boxes whose scores are equal (or equal up to ~1e-7) may come out in either order, so: the scores
+                    # sorted, and the boxes as sets, each box (7 values + score + label) found in the other output.
+                    compare('frame %d pred_scores (sorted)' % b, po['pred_scores'].sort()[0],
+                            pr['pred_scores'].sort()[0], failures)
+                    compare('frame %d label counts' % b, torch.bincount(po['pred_labels'].long(), minlength=4),
+                            torch.bincount(pr['pred_labels'].long(), minlength=4), failures, atol=0, rtol=0)
+                    for name, (p1, p2) in (('ours in OpenPCDet', (po, pr)), ('OpenPCDet in ours', (pr, po))):
+                        found, n = boxes_in_both(p1, p2, tol=1e-4)
+                        ok = found == n and len(p1['pred_boxes']) == len(p2['pred_boxes'])
+                        print('  %s frame %d boxes %-21s %d of %d' % ('ok  ' if ok else 'FAIL', b, name, found, n))
+                        if not ok:
+                            failures.append('frame %d boxes %s: %d of %d' % (b, name, found, n))
                 # Whole model, for information only: the two backbones differ by float rounding (~1e-7, checked
                 # above), which can swap the order of boxes whose scores are (nearly) tied. An untrained model with
                 # the IoU output fixed has many such ties, so compare these as sets.
