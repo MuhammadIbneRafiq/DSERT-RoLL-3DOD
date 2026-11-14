@@ -2,6 +2,7 @@ from .mean_vfe import MeanVFE
 from .dynamic_mean_vfe import DynamicMeanVFE, DynamicMeanVFERadar
 from .backbone3d import Backbone3D
 from .backbone3d_align import Backbone3D_align, Backbone3D_align_radar, Backbone3D_align_radar_only, LidarRadarUnion, LidarRadarUnionPass
+from .voxelnext_backbone import VoxelResBackBone8xVoxelNeXt
 __all__ = {
     'MeanVFE': MeanVFE,
     'DynamicMeanVFE': DynamicMeanVFE,
@@ -11,5 +12,6 @@ __all__ = {
     'Backbone3D_align_radar': Backbone3D_align_radar,
     'Backbone3D_align_radar_only':Backbone3D_align_radar_only,
     'LidarRadarUnion': LidarRadarUnion,
-    'LidarRadarUnionPass': LidarRadarUnionPass
+    'LidarRadarUnionPass': LidarRadarUnionPass,
+    'VoxelResBackBone8xVoxelNeXt': VoxelResBackBone8xVoxelNeXt,
 }

@@ -8,10 +8,12 @@ except ImportError:
     kornia = None
 from .centerpoint_waymo import CenterPointPC
 from .centerpoint_single import CenterPointSingle
+from .voxelnext_single import VoxelNeXtSingle
 from .anchor_kitti import ANCHORKITTI
 __all__ = {
     'CenterPointPC': CenterPointPC,
     'CenterPointSingle': CenterPointSingle,
+    'VoxelNeXtSingle': VoxelNeXtSingle,
     'ANCHORKITTI': ANCHORKITTI,
 }
 

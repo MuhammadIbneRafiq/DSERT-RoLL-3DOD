@@ -1,0 +1,120 @@
+# VoxelNeXt (fully sparse, single-stage) on one DSERT-RoLL point-cloud sensor, for comparison with the paper's
+# VoxelNeXt rows (Table 4: L and 4R). Model settings follow OpenPCDet's tools/cfgs/waymo_models/
+# voxelnext_ioubranch_large.yaml (DSERT-RoLL is scored with the Waymo metric). The sensor is DATA_CONFIG.SENSOR.NAME
+# (livox | ouster | radar), as in lidar_only.yaml, so a Livox checkpoint loads into a radar run with --pretrained_model.
+#
+# Differences from the OpenPCDet Waymo config, on purpose:
+# - range: the paper's stated detector range, X [0, 75.2] (forward only; the labels cover the Livox FoV),
+#   Y [-75.2, 75.2], Z [-2, 4], with OpenPCDet's Waymo voxel size 0.1 x 0.1 x 0.15.
+# - augmentation, batch, epochs: the same as this repo's lidar_only.yaml runs (no GT sampling, flip along x only,
+#   1 GPU x 16, 20 epochs), so VoxelNeXt and CenterPoint+LoGoHead runs differ only in the model. LR is OpenPCDet's
+#   0.003 at global batch 32, scaled linearly to batch 16.
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Bike']
+
+DATA_CONFIG:
+    _BASE_CONFIG_: cfgs/det_dataset_cfgs/dsert_single_sensor.yaml
+
+    POINT_CLOUD_RANGE: [0, -75.2, -2, 75.2, 75.2, 4]
+
+    DATA_PROCESSOR:
+        - NAME: mask_points_and_boxes_outside_range
+          REMOVE_OUTSIDE_BOXES: True
+          POINTS_KEY: points
+
+        - NAME: shuffle_points
+          SHUFFLE_ENABLED: {
+            'train': True,
+            'test': False
+          }
+          POINTS_KEY: points
+
+        # DynamicMeanVFE voxelizes on the GPU; this only fixes the voxel grid (752 x 1504 x 40).
+        - NAME: transform_points_to_voxels_placeholder
+          VOXEL_SIZE: [0.1, 0.1, 0.15]
+
+MODEL:
+    NAME: VoxelNeXtSingle
+    SECOND_STAGE: False
+
+    VFE:
+        NAME: DynamicMeanVFE
+
+    BACKBONE_3D:
+        NAME: VoxelResBackBone8xVoxelNeXt
+        SPCONV_KERNEL_SIZES: [5, 5, 3, 3]
+        OUT_CHANNEL: 256
+        CHANNELS: [32, 64, 128, 256, 256]
+
+    DENSE_HEAD:
+        NAME: VoxelNeXtHead
+        IOU_BRANCH: True
+        CLASS_AGNOSTIC: False
+        INPUT_FEATURES: 256
+
+        CLASS_NAMES_EACH_HEAD: [
+            ['Vehicle', 'Pedestrian', 'Bike']
+        ]
+
+        SHARED_CONV_CHANNEL: 256
+        USE_BIAS_BEFORE_NORM: True
+        NUM_HM_CONV: 2
+        SEPARATE_HEAD_CFG:
+            HEAD_ORDER: ['center', 'center_z', 'dim', 'rot']
+            HEAD_DICT: {
+                'center': {'out_channels': 2, 'num_conv': 2},
+                'center_z': {'out_channels': 1, 'num_conv': 2},
+                'dim': {'out_channels': 3, 'num_conv': 2},
+                'rot': {'out_channels': 2, 'num_conv': 2},
+                'iou': {'out_channels': 1, 'num_conv': 2},
+            }
+        # score = heatmap^(1-r) * predicted_IoU^r per class (Vehicle, Pedestrian, Bike = OpenPCDet's Cyclist value)
+        RECTIFIER: [0.68, 0.71, 0.65]
+        TARGET_ASSIGNER_CONFIG:
+            FEATURE_MAP_STRIDE: 8
+            NUM_MAX_OBJS: 500
+            GAUSSIAN_OVERLAP: 0.1
+            MIN_RADIUS: 2
+
+        LOSS_CONFIG:
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+                'loc_weight': 2.0,
+                'code_weights': [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            }
+
+        POST_PROCESSING:
+            SCORE_THRESH: 0.1
+            POST_CENTER_LIMIT_RANGE: [0, -80, -10.0, 80, 80, 10.0]
+            MAX_OBJ_PER_SAMPLE: 500
+            NMS_CONFIG:
+                NMS_TYPE: nms_gpu
+                NMS_THRESH: [0.8, 0.55, 0.55]
+                NMS_PRE_MAXSIZE: [2048, 1024, 1024]
+                NMS_POST_MAXSIZE: [200, 150, 150]
+
+    POST_PROCESSING:
+        RECALL_THRESH_LIST: [0.3, 0.5, 0.7]
+        SCORE_THRESH: 0.1
+        OUTPUT_RAW_SCORE: False
+        EVAL_METRIC: waymo
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 16
+    NUM_EPOCHS: 20
+
+    OPTIMIZER: adam_onecycle
+    LR: 0.0015
+    WEIGHT_DECAY: 0.01
+    MOMENTUM: 0.9
+
+    MOMS: [0.95, 0.85]
+    PCT_START: 0.4
+    DIV_FACTOR: 10
+    DECAY_STEP_LIST: [35, 45]
+    LR_DECAY: 0.1
+    LR_CLIP: 0.0000001
+
+    LR_WARMUP: False
+    WARMUP_EPOCH: 1
+
+    GRAD_NORM_CLIP: 10
