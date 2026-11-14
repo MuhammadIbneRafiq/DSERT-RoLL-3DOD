@@ -3,8 +3,9 @@ VoxelNeXt sparse head (Chen et al., CVPR 2023), ported from OpenPCDet
 (pcdet/models/dense_heads/voxelnext_head.py, Apache-2.0).
 
 Changes from OpenPCDet, none of which change what the model computes:
-- gt_boxes are cut to (x, y, z, dx, dy, dz, heading, class) before target assignment, as CenterHead in this repo
-  does: DSERT-RoLL labels carry two extra (all-zero) velocity columns that the head has no output for.
+- Without a 'vel' entry in HEAD_ORDER, gt_boxes are cut to (x, y, z, dx, dy, dz, heading, class) before target
+  assignment, as CenterHead in this repo does: DSERT-RoLL labels carry two extra (all-zero) velocity columns that the
+  head has no output for. With a 'vel' head (TruckScenes) they are kept, exactly as in OpenPCDet.
 - The IoU-branch losses compute the IoU between each target box and its own prediction with boxes_iou3d_gpu(...)
   .diagonal(), because this repo's compiled iou3d_nms op has no boxes_aligned_overlap_bev_gpu. Same values, no
   rebuild of the CUDA ops needed. Prediction/target pairs are taken in the same order the targets were written.
@@ -181,7 +182,10 @@ class VoxelNeXtHead(nn.Module):
     def assign_targets(self, gt_boxes, num_voxels, spatial_indices, spatial_shape):
         """gt_boxes: (B, M, 7 + C + 1), last column the class index (0 = padding)."""
         target_assigner_cfg = self.model_cfg.TARGET_ASSIGNER_CONFIG
-        gt_boxes = torch.cat((gt_boxes[:, :, :7], gt_boxes[:, :, -1:]), dim=2)
+        if 'vel' not in self.separate_head_cfg.HEAD_ORDER:
+            # No velocity output (DSERT-RoLL): drop the extra columns, as CenterHead does.
+            gt_boxes = torch.cat((gt_boxes[:, :, :7], gt_boxes[:, :, -1:]), dim=2)
+        # With a 'vel' head (TruckScenes, nuScenes-style): keep (vx, vy) as regression targets, as OpenPCDet does.
 
         batch_size = gt_boxes.shape[0]
         ret_dict = {'heatmaps': [], 'target_boxes': [], 'inds': [], 'masks': [], 'heatmap_masks': [], 'gt_boxes': []}

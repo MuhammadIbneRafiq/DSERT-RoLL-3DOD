@@ -1,0 +1,118 @@
+# VoxelNeXt on MAN TruckScenes, one modality (DATA_CONFIG.SENSOR.NAME: lidar | radar), for the radar / LiDAR /
+# LiDAR-pretrained -> radar-finetuned comparison that mirrors the DSERT-RoLL VoxelNeXt runs.
+#
+# Model, head, losses, post-processing and optimiser: OpenPCDet's nuScenes VoxelNeXt
+# (tools/cfgs/nuscenes_models/cbgs_voxel0075_voxelnext.yaml at commit 233f849, the commit the port was checked against),
+# because TruckScenes uses the nuScenes format and metric (centre-distance AP, velocity error, NDS). Changes, and why:
+# - classes: the 12 TruckScenes detection classes, in 7 heads. OpenPCDet's 6 nuScenes groups with construction_vehicle
+#   -> other_vehicle, plus [animal, traffic_sign] for the two classes nuScenes does not have (the official CenterPoint
+#   baseline also uses "seven detection heads").
+# - range / voxel: 300 m x 300 m at 0.1 x 0.1 x 0.2 m, as the official CenterPoint baseline (evaluation goes to 150 m);
+#   z [-5, 7] m (see the dataset config). Grid 3000 x 3000 x 60.
+# - NMS_POST_MAXSIZE 71 per head: OpenPCDet uses 83 = floor(500 / 6 heads) so a sample never exceeds the 500 boxes the
+#   evaluation allows; floor(500 / 7) = 71.
+# - POST_CENTER_LIMIT_RANGE: the range plus OpenPCDet's 7.2 m margin.
+# - augmentation: no gt_sampling and no CBGS (as the DSERT-RoLL runs), see the dataset config.
+# - batch / LR: OpenPCDet trains 8 GPUs x 4 = 32 at LR 0.001. Here 1 GPU x 16, as the DSERT-RoLL VoxelNeXt runs, with
+#   the LR scaled linearly to 0.0005 (the rule the DSERT-RoLL config used: 0.003 @ 32 -> 0.0015 @ 16);
+#   train_truckscenes.sbatch applies the same rule if BATCH is changed. 20 epochs (as OpenPCDet and the official
+#   CenterPoint baseline).
+CLASS_NAMES: ['car', 'truck', 'bus', 'trailer', 'other_vehicle', 'pedestrian', 'motorcycle', 'bicycle',
+              'traffic_cone', 'barrier', 'animal', 'traffic_sign']
+
+DATA_CONFIG:
+    _BASE_CONFIG_: cfgs/det_dataset_cfgs/truckscenes_single_sensor.yaml
+
+MODEL:
+    NAME: VoxelNeXtSingle
+    SECOND_STAGE: False
+
+    VFE:
+        NAME: DynamicMeanVFE
+
+    BACKBONE_3D:
+        NAME: VoxelResBackBone8xVoxelNeXt
+        # OpenPCDet defaults, written out: SPCONV_KERNEL_SIZES [3, 3, 3, 3], CHANNELS [16, 32, 64, 128, 128]
+        SPCONV_KERNEL_SIZES: [3, 3, 3, 3]
+        CHANNELS: [16, 32, 64, 128, 128]
+        OUT_CHANNEL: 128
+
+    DENSE_HEAD:
+        NAME: VoxelNeXtHead
+        CLASS_AGNOSTIC: False
+        INPUT_FEATURES: 128
+
+        CLASS_NAMES_EACH_HEAD: [
+            ['car'],
+            ['truck', 'other_vehicle'],
+            ['bus', 'trailer'],
+            ['barrier'],
+            ['motorcycle', 'bicycle'],
+            ['pedestrian', 'traffic_cone'],
+            ['animal', 'traffic_sign'],
+        ]
+
+        SHARED_CONV_CHANNEL: 128
+        KERNEL_SIZE_HEAD: 1
+
+        USE_BIAS_BEFORE_NORM: True
+        NUM_HM_CONV: 2
+        SEPARATE_HEAD_CFG:
+            HEAD_ORDER: ['center', 'center_z', 'dim', 'rot', 'vel']
+            HEAD_DICT: {
+                'center': {'out_channels': 2, 'num_conv': 2},
+                'center_z': {'out_channels': 1, 'num_conv': 2},
+                'dim': {'out_channels': 3, 'num_conv': 2},
+                'rot': {'out_channels': 2, 'num_conv': 2},
+                'vel': {'out_channels': 2, 'num_conv': 2},
+            }
+
+        TARGET_ASSIGNER_CONFIG:
+            FEATURE_MAP_STRIDE: 8
+            NUM_MAX_OBJS: 500
+            GAUSSIAN_OVERLAP: 0.1
+            MIN_RADIUS: 2
+
+        LOSS_CONFIG:
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+                'loc_weight': 0.25,
+                'code_weights': [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2, 1.0, 1.0]
+            }
+
+        POST_PROCESSING:
+            SCORE_THRESH: 0.1
+            POST_CENTER_LIMIT_RANGE: [-157.2, -157.2, -10.0, 157.2, 157.2, 10.0]
+            MAX_OBJ_PER_SAMPLE: 500
+            NMS_CONFIG:
+                NMS_TYPE: nms_gpu
+                NMS_THRESH: 0.2
+                NMS_PRE_MAXSIZE: 1000
+                NMS_POST_MAXSIZE: 71
+
+    POST_PROCESSING:
+        RECALL_THRESH_LIST: [0.3, 0.5, 0.7]
+        SCORE_THRESH: 0.1
+        OUTPUT_RAW_SCORE: False
+        EVAL_METRIC: truckscenes
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 16
+    NUM_EPOCHS: 20
+
+    OPTIMIZER: adam_onecycle
+    LR: 0.0005          # 0.001 x 16 / 32; train_truckscenes.sbatch sets 0.001 x BATCH / 32
+    WEIGHT_DECAY: 0.01
+    MOMENTUM: 0.9
+
+    MOMS: [0.95, 0.85]
+    PCT_START: 0.4
+    DIV_FACTOR: 10
+    DECAY_STEP_LIST: [35, 45]
+    LR_DECAY: 0.1
+    LR_CLIP: 0.0000001
+
+    LR_WARMUP: False
+    WARMUP_EPOCH: 1
+
+    GRAD_NORM_CLIP: 10

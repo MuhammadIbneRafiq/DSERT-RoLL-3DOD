@@ -1,7 +1,8 @@
 """
 Check that this repo's VoxelNeXt port computes exactly what OpenPCDet's VoxelNeXt computes.
 
-Builds OpenPCDet's VoxelResBackBone8xVoxelNeXt + VoxelNeXtHead and ours from the same config (voxelnext.yaml),
+Builds OpenPCDet's VoxelResBackBone8xVoxelNeXt + VoxelNeXtHead and ours from the same config (--cfg: the DSERT-RoLL
+voxelnext.yaml, Waymo-style IoU branch; or the TruckScenes voxelnext.yaml, nuScenes-style with 7 heads and velocity),
 copies our weights into OpenPCDet's (strict: every parameter name and shape must match), feeds both the same random
 voxels and GT boxes, and compares, in train mode, backbone output, head outputs and every loss term, and in eval
 mode, the decoded boxes, scores and labels after NMS.
@@ -71,7 +72,15 @@ def import_reference(ref_root):
 
 def load_cfg(path):
     with open(path) as f:
-        cfg = EasyDict(yaml.safe_load(f))
+        cfg = yaml.safe_load(f)
+    base = cfg['DATA_CONFIG'].get('_BASE_CONFIG_')
+    if base:
+        # Same precedence as the training config loader: the model config's DATA_CONFIG keys override the base's.
+        with open(base) as f:
+            data_cfg = yaml.safe_load(f)
+        data_cfg.update({k: v for k, v in cfg['DATA_CONFIG'].items() if k != '_BASE_CONFIG_'})
+        cfg['DATA_CONFIG'] = data_cfg
+    cfg = EasyDict(cfg)
     pc_range = np.array(cfg.DATA_CONFIG.POINT_CLOUD_RANGE, dtype=np.float32)
     voxel = [p for p in cfg.DATA_CONFIG.DATA_PROCESSOR if p.NAME == 'transform_points_to_voxels_placeholder'][0]
     voxel_size = np.array(voxel.VOXEL_SIZE, dtype=np.float32)
@@ -79,7 +88,7 @@ def load_cfg(path):
     return cfg, pc_range, voxel_size, grid_size
 
 
-def random_batch(grid_size, pc_range, voxel_size, batch_size, n_vox, n_gt, n_cls, gen):
+def random_batch(grid_size, pc_range, voxel_size, batch_size, n_vox, n_gt, n_cls, gen, n_feat=4):
     coords = []
     for b in range(batch_size):
         x = torch.randint(0, int(grid_size[0]), (n_vox,), generator=gen)
@@ -88,7 +97,7 @@ def random_batch(grid_size, pc_range, voxel_size, batch_size, n_vox, n_gt, n_cls
         c = torch.stack([torch.full_like(x, b), z, y, x], 1)
         coords.append(torch.unique(c, dim=0))
     coords = torch.cat(coords).int()
-    feats = torch.randn(coords.shape[0], 4, generator=gen)
+    feats = torch.randn(coords.shape[0], n_feat, generator=gen)
 
     lo = torch.tensor(pc_range[:3]) + 5
     hi = torch.tensor(pc_range[3:6]) - 5
@@ -183,15 +192,16 @@ def main():
 
     cfg, pc_range, voxel_size, grid_size = load_cfg(args.cfg)
     class_names = cfg.CLASS_NAMES
+    n_feat = len(cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.used_feature_list)   # DynamicMeanVFE: 1 voxel feature per point feature
     head_kw = dict(input_channels=cfg.MODEL.BACKBONE_3D.OUT_CHANNEL, num_class=len(class_names),
                    class_names=class_names, grid_size=grid_size, point_cloud_range=pc_range, voxel_size=voxel_size,
                    predict_boxes_when_training=False)
     print('grid', grid_size.tolist(), 'range', pc_range.tolist(), 'voxel', voxel_size.tolist())
 
     torch.manual_seed(0)
-    ours_bb = OurBackbone(copy.deepcopy(cfg.MODEL.BACKBONE_3D), input_channels=4, grid_size=grid_size).cuda()
+    ours_bb = OurBackbone(copy.deepcopy(cfg.MODEL.BACKBONE_3D), input_channels=n_feat, grid_size=grid_size).cuda()
     ours_hd = OurHead(copy.deepcopy(cfg.MODEL.DENSE_HEAD), **head_kw).cuda()
-    ref_bb = RefBackbone(copy.deepcopy(cfg.MODEL.BACKBONE_3D), input_channels=4, grid_size=grid_size).cuda()
+    ref_bb = RefBackbone(copy.deepcopy(cfg.MODEL.BACKBONE_3D), input_channels=n_feat, grid_size=grid_size).cuda()
     ref_hd = RefHead(copy.deepcopy(cfg.MODEL.DENSE_HEAD), **head_kw).cuda()
 
     # strict=True: fails loudly if any parameter or buffer name/shape differs from OpenPCDet's
@@ -200,24 +210,36 @@ def main():
     print('weights: %d backbone + %d head tensors, names and shapes identical to OpenPCDet'
           % (len(ours_bb.state_dict()), len(ours_hd.state_dict())))
 
+    head_cfg = cfg.MODEL.DENSE_HEAD
+    has_vel = 'vel' in head_cfg.SEPARATE_HEAD_CFG.HEAD_ORDER
+    iou_branch = bool(head_cfg.get('IOU_BRANCH', False))
+    print('head: %d heads, velocity %s, IoU branch %s' % (len(head_cfg.CLASS_NAMES_EACH_HEAD), has_vel, iou_branch))
+
     failures = []
     gen = torch.Generator().manual_seed(1)
     for trial in range(args.trials):
         feats, coords, gt8 = random_batch(grid_size, pc_range, voxel_size, 2, args.voxels, args.gt,
-                                          len(class_names), gen)
-        # DSERT-RoLL layout for our head: 7 box values, 2 zero velocity columns, class
-        gt10 = torch.cat([gt8[..., :7], torch.zeros_like(gt8[..., :2]), gt8[..., 7:]], -1)
+                                          len(class_names), gen, n_feat)
+        if has_vel:
+            # TruckScenes / nuScenes layout for both heads: 7 box values, velocity (vx, vy), class
+            vel = (torch.rand(gt8.shape[:2] + (2,), generator=gen) - 0.5) * 20 * (gt8[..., 7:] > 0)
+            gt_ours = gt_ref = torch.cat([gt8[..., :7], vel, gt8[..., 7:]], -1)
+        else:
+            # DSERT-RoLL layout for our head: 7 box values, 2 zero velocity columns, class; OpenPCDet's without them
+            gt_ours, gt_ref = torch.cat([gt8[..., :7], torch.zeros_like(gt8[..., :2]), gt8[..., 7:]], -1), gt8
 
         for mode in ('train', 'eval'):
             print('trial %d, %s mode' % (trial, mode))
-            if mode == 'eval':
+            if mode == 'eval' and iou_branch:
                 # An untrained IoU branch outputs values below -1, where OpenPCDet's score hm^(1-r) * ((iou+1)/2)^r
                 # is NaN and ours (clamped) is not. A trained one stays inside [-1, 1], where both are identical,
                 # so for the eval comparison fix the IoU output at 0.5 in both models (same weights).
-                last = ours_hd.heads_list[0].iou[-1]
-                with torch.no_grad():
-                    last.weight.zero_()
-                    last.bias.fill_(0.5)
+                for sep_head in ours_hd.heads_list:
+                    last = sep_head.iou[-1]
+                    with torch.no_grad():
+                        last.weight.zero_()
+                        last.bias.fill_(0.5)
+            if mode == 'eval':
                 # Untrained BatchNorm running statistics (mean 0, var 1) leave eval-mode activations unnormalised, so
                 # the heat-map saturates at exactly 1.0 on many voxels and NMS faces exact score ties, whose order the
                 # GPU top-k/sort leaves undefined. Give the BN layers this batch's statistics first, then copy all
@@ -228,7 +250,7 @@ def main():
             for m in (ours_bb, ours_hd, ref_bb, ref_hd):
                 m.train(mode == 'train')
             outs = {}
-            for tag, bb, hd, gt in (('ours', ours_bb, ours_hd, gt10), ('ref', ref_bb, ref_hd, gt8)):
+            for tag, bb, hd, gt in (('ours', ours_bb, ours_hd, gt_ours), ('ref', ref_bb, ref_hd, gt_ref)):
                 bd = {'batch_size': 2, 'voxel_features': feats.cuda().clone(),
                       'voxel_coords': coords.cuda().clone(), 'gt_boxes': gt.cuda().clone()}
                 with torch.set_grad_enabled(mode == 'train'):
@@ -242,11 +264,13 @@ def main():
             ir, fe_r = sparse_dense(br['encoded_spconv_tensor'])
             compare('backbone out indices', io, ir, failures, atol=0, rtol=0)
             compare('backbone out features', fe_o, fe_r, failures)
-            for k in fo['pred_dicts'][0]:
-                compare('head %s' % k, fo['pred_dicts'][0][k], fr['pred_dicts'][0][k], failures)
+            for h in range(len(fo['pred_dicts'])):
+                for k in fo['pred_dicts'][h]:
+                    compare('head %d %s' % (h, k), fo['pred_dicts'][h][k], fr['pred_dicts'][h][k], failures)
             if mode == 'train':
-                for k in ('heatmaps', 'target_boxes', 'inds', 'masks'):
-                    compare('target %s' % k, fo['target_dicts'][k][0], fr['target_dicts'][k][0], failures)
+                for h in range(len(fo['pred_dicts'])):
+                    for k in ('heatmaps', 'target_boxes', 'inds', 'masks'):
+                        compare('target %d %s' % (h, k), fo['target_dicts'][k][h], fr['target_dicts'][k][h], failures)
                 compare('loss total', lo[0], lr[0], failures)
                 for k in sorted(lr[1]):
                     compare('loss %s' % k, torch.tensor(lo[1].get(k, float('nan'))), torch.tensor(lr[1][k]),
@@ -267,8 +291,9 @@ def main():
                     # sorted, and the boxes as sets, each box (7 values + score + label) found in the other output.
                     compare('frame %d pred_scores (sorted)' % b, po['pred_scores'].sort()[0],
                             pr['pred_scores'].sort()[0], failures)
-                    compare('frame %d label counts' % b, torch.bincount(po['pred_labels'].long(), minlength=4),
-                            torch.bincount(pr['pred_labels'].long(), minlength=4), failures, atol=0, rtol=0)
+                    nc = len(class_names) + 1
+                    compare('frame %d label counts' % b, torch.bincount(po['pred_labels'].long(), minlength=nc),
+                            torch.bincount(pr['pred_labels'].long(), minlength=nc), failures, atol=0, rtol=0)
                     for name, (p1, p2) in (('ours in OpenPCDet', (po, pr)), ('OpenPCDet in ours', (pr, po))):
                         found, n = boxes_in_both(p1, p2, tol=1e-4)
                         ok = found == n and len(p1['pred_boxes']) == len(p2['pred_boxes'])

@@ -1,0 +1,91 @@
+# MAN TruckScenes, one modality: all 6 LiDARs or all 6 radars, merged in the ego frame of the LIDAR_LEFT keyframe with
+# the devkit's calibrated_sensor + ego_pose transforms (al3d_det/datasets/man_truckscenes). Infos come from
+# tools/create_truckscenes_infos.py; scores come from the devkit's official DetectionEval (detection_cvpr_2024).
+DATASET: 'TruckScenesDataset'
+DATA_PATH: '../data/man-truckscenes'   # the devkit dataroot (holds samples/, sweeps/, v1.2-trainval/)
+VERSION: 'v1.2-trainval'
+INFO_DIR: null                         # null = <DATA_PATH>/al3d_infos/<VERSION>
+
+# The devkit's official split (truckscenes.utils.splits): train 523 scenes, val 75. For v1.2-mini: mini_train/mini_val.
+DATA_SPLIT: {
+    'train': train,
+    'test': val
+}
+
+SENSOR:
+    NAME: lidar          # lidar | radar
+    CHANNELS: all        # all channels of that modality, or a list, e.g. [LIDAR_LEFT, LIDAR_RIGHT]
+    # Sweeps per channel (keyframe + earlier sweeps), as the official TruckScenes baselines: CenterPoint (LiDAR)
+    # "3 aggregated sweeps", RadarGNN (radar) "6 aggregated sweeps" (Fent et al., NeurIPS 2024, Sec. 5).
+    NSWEEPS: {lidar: 3, radar: 6}
+    # 4th point channel; auto = intensity (LiDAR) / doppler (radar: signed radial relative velocity, not ego-motion
+    # compensated, the analogue of DSERT-RoLL's raw Doppler channel). Radar alternatives: rcs | none. LiDAR: none.
+    FEATURE: auto
+
+# As the official evaluation (loaders.filter_eval_boxes): GT boxes without LiDAR or radar points are not used.
+FILTER_EMPTY_GT: True
+SET_NAN_VELOCITY_TO_ZEROS: True   # devkit box_velocity is NaN for single annotations (as OpenPCDet's nuScenes config)
+
+# 300 m x 300 m around the ego vehicle, as the official CenterPoint baseline ("cropped to a 300 m x 300 m grid"), so
+# every box within the 150 m evaluation range is inside. Ego frame: origin on the ground under the rear axle, so z is
+# height above ground; [-5, 7] holds 98.9 % of the evaluated GT boxes in v1.2-mini (nuScenes' 8 m span would hold 93 %).
+POINT_CLOUD_RANGE: [-150.0, -150.0, -5.0, 150.0, 150.0, 7.0]
+
+SAMPLED_INTERVAL: {
+    'train': 1,
+    'test': 1
+}
+
+SWEEP_COUNT: [0, 0]   # DatasetTemplate field, unused here (sweeps are SENSOR.NSWEEPS)
+TTA: False
+USE_IMAGE: False
+
+# OpenPCDet's VoxelNeXt nuScenes augmentation (cbgs_voxel0075_voxelnext.yaml) without gt_sampling (as this repo's
+# DSERT-RoLL runs; no GT database is built) and without CBGS resampling.
+DATA_AUGMENTOR:
+    DISABLE_AUG_LIST: ['placeholder', 'gt_sampling']
+    AUG_CONFIG_LIST:
+        - NAME: random_world_flip
+          ALONG_AXIS_LIST: ['x', 'y']
+
+        - NAME: random_world_rotation
+          WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+
+        - NAME: random_world_scaling
+          WORLD_SCALE_RANGE: [0.9, 1.1]
+
+        - NAME: random_world_translation
+          STD: 0.5
+
+POINT_FEATURE_ENCODING: {
+    encoding_type: absolute_coordinates_encoding,
+    used_feature_list: ['x', 'y', 'z', 'feature', 'time_lag'],
+    src_feature_list: ['x', 'y', 'z', 'feature', 'time_lag'],
+}
+
+# Required by DatasetTemplate; describes the placeholder radar point, which the model ignores.
+RADAR_POINT_FEATURE_ENCODING:
+  encoding_type: absolute_coordinates_encoding
+  src_feature_list:  ['x', 'y', 'z', 'feature', 'time_lag']
+  used_feature_list: ['x', 'y', 'z', 'feature', 'time_lag']
+
+DATA_PROCESSOR:
+    - NAME: mask_points_and_boxes_outside_range
+      REMOVE_OUTSIDE_BOXES: True
+      POINTS_KEY: points
+
+    - NAME: shuffle_points
+      SHUFFLE_ENABLED: {
+        'train': True,
+        'test': False
+      }
+      POINTS_KEY: points
+
+    # DynamicMeanVFE voxelizes on the GPU; this only fixes the voxel grid.
+    - NAME: transform_points_to_voxels_placeholder
+      VOXEL_SIZE: [0.1, 0.1, 0.2]
+
+EVAL:
+    CONFIG: detection_cvpr_2024   # truckscenes/eval/detection/configs/detection_cvpr_2024.json
+    EVALUATE_TAGS: False          # True: also per scene tag (weather, daytime, ...), ~35x slower
+    RENDER_CURVES: False

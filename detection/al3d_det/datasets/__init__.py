@@ -7,12 +7,14 @@ from al3d_utils import common_utils
 from .dataset import DatasetTemplate
 from .dsert.dsert_dataset import DSERTTrainingDataset, DSERTInferenceDataset
 from .dsert.dsert_single_sensor_dataset import DSERTSingleSensorDataset
+from .man_truckscenes.truckscenes_dataset import TruckScenesDataset
 
 __all__ = {
     'DatasetTemplate': DatasetTemplate,
     'DSERTTrainingDataset': DSERTTrainingDataset,
     'DSERTInferenceDataset': DSERTInferenceDataset,
     'DSERTSingleSensorDataset': DSERTSingleSensorDataset,
+    'TruckScenesDataset': TruckScenesDataset,
 }
 
 

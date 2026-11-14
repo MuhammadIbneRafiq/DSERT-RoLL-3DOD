@@ -34,7 +34,7 @@ source "$SNELLIUS_DIR/snellius_env.sh"
 # The OpenPCDet commit the port was made from (VoxelNeXt files unchanged on master as of 2026-11-14).
 OPENPCDET_COMMIT="${OPENPCDET_COMMIT:-233f849829b6ac19afb8af8837a0246890908755}"
 OPENPCDET_REF="${OPENPCDET_REF:-$HOME/.cache/openpcdet_ref}"
-CFG="cfgs/det_model_cfgs/dsert/voxelnext.yaml"
+CFG="${CFG:-cfgs/det_model_cfgs/dsert/voxelnext.yaml}"   # TruckScenes: CFG=cfgs/det_model_cfgs/truckscenes/voxelnext.yaml
 
 load_cuda_module
 activate_env

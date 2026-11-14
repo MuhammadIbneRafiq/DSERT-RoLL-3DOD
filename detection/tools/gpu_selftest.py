@@ -29,8 +29,10 @@ class GridOnlyDataset:
         self.grid_size, self.voxel_size = processor.grid_size, processor.voxel_size
 
 
-def random_batch(pc_range, batch_size, num_classes, device, rng):
-    """Background points in range, plus dense point clusters inside a few labelled boxes per sample."""
+def random_batch(pc_range, batch_size, num_classes, device, rng, num_features=4, with_velocity=False):
+    """Background points in range, plus dense point clusters inside a few labelled boxes per sample.
+    num_features: point features incl. x, y, z (4 for DSERT-RoLL, 5 for TruckScenes: + time lag).
+    with_velocity: boxes get (vx, vy) before the class column, for heads with a 'vel' output (TruckScenes)."""
     points, boxes = [], []
     for b in range(batch_size):
         n_bg = 30000
@@ -39,14 +41,15 @@ def random_batch(pc_range, batch_size, num_classes, device, rng):
         sample_boxes = []
         for k in range(6):
             cls = k % num_classes + 1
-            dims = [[4.2, 1.9, 1.6], [0.8, 0.8, 1.8], [1.8, 0.7, 1.6]][cls - 1]
-            box = [rng.uniform(5, 60), rng.uniform(-30, 30), 0.0, *dims, rng.uniform(-np.pi, np.pi), cls]
+            dims = [[4.2, 1.9, 1.6], [0.8, 0.8, 1.8], [1.8, 0.7, 1.6]][(cls - 1) % 3]
+            vel = list(rng.uniform(-10, 10, 2)) if with_velocity else []
+            box = [rng.uniform(5, 60), rng.uniform(-30, 30), 0.0, *dims, rng.uniform(-np.pi, np.pi), *vel, cls]
             sample_boxes.append(box)
             c, s = np.cos(box[6]), np.sin(box[6])
             local = (rng.random((400, 3)) - 0.5) * np.array(dims)
             bg = np.r_[bg, np.c_[local[:, 0] * c - local[:, 1] * s + box[0], local[:, 0] * s + local[:, 1] * c + box[1],
                                  local[:, 2] + box[2]]]
-        feat = rng.uniform(0, 8, (len(bg), 1))
+        feat = rng.uniform(0, 8, (len(bg), num_features - 3))
         points.append(np.c_[np.full((len(bg), 1), b), bg, feat])
         boxes.append(sample_boxes)
     return {
@@ -85,11 +88,13 @@ def main():
         scaler = torch.amp.GradScaler('cuda') if hasattr(torch.amp, 'GradScaler') else torch.cuda.amp.GradScaler()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     rng = np.random.default_rng(0)
+    batch_kw = dict(num_features=dataset.point_feature_encoder.num_point_features,
+                    with_velocity='vel' in cfg.MODEL.DENSE_HEAD.get('SEPARATE_HEAD_CFG', {}).get('HEAD_ORDER', []))
 
     model.train()
     times = []
     for step in range(args.steps):
-        batch = random_batch(dataset.point_cloud_range, args.batch_size, len(cfg.CLASS_NAMES), device, rng)
+        batch = random_batch(dataset.point_cloud_range, args.batch_size, len(cfg.CLASS_NAMES), device, rng, **batch_kw)
         torch.cuda.synchronize()
         t0 = time.time()
         ret, tb_dict, _ = model(batch)
@@ -112,7 +117,8 @@ def main():
 
     model.eval()
     with torch.no_grad():
-        pred_dicts, _ = model(random_batch(dataset.point_cloud_range, args.batch_size, len(cfg.CLASS_NAMES), device, rng))
+        pred_dicts, _ = model(random_batch(dataset.point_cloud_range, args.batch_size, len(cfg.CLASS_NAMES), device, rng,
+                                           **batch_kw))
     assert len(pred_dicts) == args.batch_size and {'pred_boxes', 'pred_scores', 'pred_labels'} <= set(pred_dicts[0])
     print('inference: %d samples, %s boxes in sample 0' % (len(pred_dicts), tuple(pred_dicts[0]['pred_boxes'].shape)))
 

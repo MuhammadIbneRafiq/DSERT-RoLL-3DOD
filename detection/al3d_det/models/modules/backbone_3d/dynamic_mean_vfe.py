@@ -55,11 +55,13 @@ class DynamicMeanVFE(nn.Module):
         points = batch_dict['points'] # (batch_idx, x, y, z, i, e)
 
         # # debug
-        point_coords = torch.floor((points[:, 1:4] - self.point_cloud_range[0:3]) / self.voxel_size).int()
+        # int64 keys: batch_idx * (X*Y*Z) overflows int32 for large grids (TruckScenes 3000x3000x40 at batch index >= 5),
+        # which silently merges points into wrong voxels. Where int32 suffices the result is identical.
+        point_coords = torch.floor((points[:, 1:4] - self.point_cloud_range[0:3]) / self.voxel_size).long()
         mask = ((point_coords >= 0) & (point_coords < self.grid_size)).all(dim=1)
         points = points[mask]
         point_coords = point_coords[mask]
-        merge_coords = points[:, 0].int() * self.scale_xyz + \
+        merge_coords = points[:, 0].long() * int(self.scale_xyz) + \
                         point_coords[:, 0] * self.scale_yz + \
                         point_coords[:, 1] * self.scale_z + \
                         point_coords[:, 2]
@@ -69,12 +71,11 @@ class DynamicMeanVFE(nn.Module):
 
         points_mean = _scatter_mean(points_data, unq_inv)
         
-        unq_coords = unq_coords.int()
-        voxel_coords = torch.stack((torch.div(unq_coords, self.scale_xyz, rounding_mode='trunc'),
-                                    torch.div((unq_coords % self.scale_xyz), self.scale_yz, rounding_mode='trunc'),
-                                    torch.div((unq_coords % self.scale_yz), self.scale_z, rounding_mode='trunc'),
-                                    unq_coords % self.scale_z), dim=1)
-        voxel_coords = voxel_coords[:, [0, 3, 2, 1]]
+        voxel_coords = torch.stack((torch.div(unq_coords, int(self.scale_xyz), rounding_mode='trunc'),
+                                    torch.div((unq_coords % int(self.scale_xyz)), int(self.scale_yz), rounding_mode='trunc'),
+                                    torch.div((unq_coords % int(self.scale_yz)), int(self.scale_z), rounding_mode='trunc'),
+                                    unq_coords % int(self.scale_z)), dim=1)
+        voxel_coords = voxel_coords[:, [0, 3, 2, 1]].int()
         
         batch_dict['voxel_features'] = points_mean.contiguous()
         batch_dict['voxel_coords'] = voxel_coords.contiguous()
@@ -122,11 +123,13 @@ class DynamicMeanVFERadar(nn.Module):
         points = batch_dict['points_radar'] # (batch_idx, x, y, z, i, e)
 
         # # debug
-        point_coords = torch.floor((points[:, 1:4] - self.point_cloud_range[0:3]) / self.voxel_size).int()
+        # int64 keys: batch_idx * (X*Y*Z) overflows int32 for large grids (TruckScenes 3000x3000x40 at batch index >= 5),
+        # which silently merges points into wrong voxels. Where int32 suffices the result is identical.
+        point_coords = torch.floor((points[:, 1:4] - self.point_cloud_range[0:3]) / self.voxel_size).long()
         mask = ((point_coords >= 0) & (point_coords < self.grid_size)).all(dim=1)
         points = points[mask]
         point_coords = point_coords[mask]
-        merge_coords = points[:, 0].int() * self.scale_xyz + \
+        merge_coords = points[:, 0].long() * int(self.scale_xyz) + \
                         point_coords[:, 0] * self.scale_yz + \
                         point_coords[:, 1] * self.scale_z + \
                         point_coords[:, 2]
@@ -136,12 +139,11 @@ class DynamicMeanVFERadar(nn.Module):
 
         points_mean = _scatter_mean(points_data, unq_inv)
         
-        unq_coords = unq_coords.int()
-        voxel_coords = torch.stack((torch.div(unq_coords, self.scale_xyz, rounding_mode='trunc'),
-                                    torch.div((unq_coords % self.scale_xyz), self.scale_yz, rounding_mode='trunc'),
-                                    torch.div((unq_coords % self.scale_yz), self.scale_z, rounding_mode='trunc'),
-                                    unq_coords % self.scale_z), dim=1)
-        voxel_coords = voxel_coords[:, [0, 3, 2, 1]]
+        voxel_coords = torch.stack((torch.div(unq_coords, int(self.scale_xyz), rounding_mode='trunc'),
+                                    torch.div((unq_coords % int(self.scale_xyz)), int(self.scale_yz), rounding_mode='trunc'),
+                                    torch.div((unq_coords % int(self.scale_yz)), int(self.scale_z), rounding_mode='trunc'),
+                                    unq_coords % int(self.scale_z)), dim=1)
+        voxel_coords = voxel_coords[:, [0, 3, 2, 1]].int()
         
         batch_dict['voxel_features_radar'] = points_mean.contiguous()
         batch_dict['voxel_coords_radar'] = voxel_coords.contiguous()

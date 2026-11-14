@@ -33,8 +33,10 @@ CFG=cfgs/det_model_cfgs/dsert/voxelnext.yaml
 ONLY="${ONLY:-livox radar ft}"
 SEEDS="${SEEDS:-}"          # empty = one unseeded run per setup
 SMOKE="${SMOKE:-0}"
-if [ "$SMOKE" = "1" ]; then TIME="${TIME:-02:00:00}"; else TIME="${TIME:-1-00:00:00}"; fi
-FT_TIME="${FT_TIME:-1-12:00:00}"   # finetune job also evaluates every vnx_livox checkpoint first
+# Full runs get 2 days each: a safe margin over the expected time (estimate it from the smoke run's s/it). Snellius
+# reserves time limit x 192 SBU/h from the budget when a job starts (2 days = 9,216 SBU) and returns what is unused.
+if [ "$SMOKE" = "1" ]; then TIME="${TIME:-02:00:00}"; else TIME="${TIME:-2-00:00:00}"; fi
+FT_TIME="${FT_TIME:-2-12:00:00}"   # finetune job first evaluates the saved vnx_livox checkpoints, then trains 2 days max
 
 want() { [[ " $ONLY " == *" $1 "* ]]; }
 
