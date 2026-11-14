@@ -155,9 +155,25 @@ def _topk_1d(scores, batch_size, batch_idx, obj, K=40, nuscenes=False):
             topk_score, topk_ind = torch.topk(obj[topk_inds.view(-1)].squeeze(-1), K) #torch.topk(topk_scores.view(-1), K)
         else:
             score = obj[batch_inds].permute(1, 0)
-            topk_scores, topk_inds = torch.topk(score, min(K, score.shape[-1]))
+            k_per_class = min(K, score.shape[-1])
+            topk_scores, topk_inds = torch.topk(score, k_per_class)
             topk_score, topk_ind = torch.topk(topk_scores.view(-1), min(K, topk_scores.view(-1).shape[-1]))
             #topk_score, topk_ind = torch.topk(score.reshape(-1), K)
+            if nuscenes and k_per_class < K:
+                # Fewer than K voxels in this sample (sparse frames: DSERT radar, Livox dropouts). OpenPCDet stacks
+                # unequal lengths here and crashes, and its `// K` gives wrong classes. Use the real per-class count,
+                # then pad to K with score -1, which the score threshold in the decoder removes. Samples with >= K
+                # voxels take exactly OpenPCDet's path.
+                topk_classes = (topk_ind // max(k_per_class, 1)).int()
+                topk_inds = topk_inds.reshape(-1).gather(0, topk_ind)
+                pad = K - topk_score.shape[0]
+                topk_score = torch.cat([topk_score, topk_score.new_full((pad,), -1.0)])
+                topk_inds = torch.cat([topk_inds, topk_inds.new_zeros(pad)])
+                topk_classes = torch.cat([topk_classes, topk_classes.new_zeros(pad)])
+                topk_score_list.append(topk_score)
+                topk_inds_list.append(topk_inds)
+                topk_classes_list.append(topk_classes)
+                continue
 
         topk_classes = (topk_ind // K).int()
         topk_inds = topk_inds.view(-1).gather(0, topk_ind)
@@ -270,6 +286,10 @@ def gather_feat_idx(feats, inds, batch_size, batch_idx):
     for bs_idx in range(batch_size):
         batch_inds = batch_idx==bs_idx
         feat = feats[batch_inds]
+        if feat.shape[0] == 0:
+            # sample with no voxels at all: every candidate is padding (score -1), so any values do
+            feats_list.append(feats.new_zeros((_inds.size(1), dim)))
+            continue
         feats_list.append(feat.gather(0, _inds[bs_idx]))
     feats = torch.stack(feats_list)
     return feats
