@@ -58,7 +58,7 @@ fetch() {
     if [[ -e "$DEST/.done/$name" ]]; then echo "skip $name (done)"; return 0; fi
 
     echo "[$(date +%T)] download $name"
-    wget -q -c --tries=20 --waitretry=30 -O "$zip" "$BASE/$rel"
+    wget -q -c --tries=20 --waitretry=30 --no-use-server-timestamps -O "$zip" "$BASE/$rel"
 
     echo "[$(date +%T)] md5 $name"
     if [[ "$(md5sum "$zip" | cut -d' ' -f1)" != "$md5" ]]; then
@@ -71,7 +71,9 @@ fetch() {
         # samples|sweeps/<SENSOR>/<file>; spelled out so it works whether or not '*' crosses '/' in this unzip
         for s in $KEEP; do pats+=("man-truckscenes/*/${s}_*/*"); done
     fi
-    unzip -q -o "$zip" "${pats[@]}" -d "$DEST"
+    # -DD: stamp files with the extraction time, not the archive's months-old dates, so the scratch
+    # 14-day cleanup doesn't treat freshly unpacked data as already expired.
+    unzip -q -o -DD "$zip" "${pats[@]}" -d "$DEST"
 
     rm -f "$zip"; touch "$DEST/.done/$name"
     echo "[$(date +%T)] done $name"
