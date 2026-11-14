@@ -7,7 +7,19 @@ from al3d_utils import common_utils
 from .dataset import DatasetTemplate
 from .dsert.dsert_dataset import DSERTTrainingDataset, DSERTInferenceDataset
 from .dsert.dsert_single_sensor_dataset import DSERTSingleSensorDataset
-from .man_truckscenes.truckscenes_dataset import TruckScenesDataset
+
+# TruckScenes needs packages the DSERT runs do not (pyquaternion, truckscenes-devkit). Import it only if they are
+# installed, so a missing TruckScenes package never stops a DSERT job; using TruckScenesDataset without them raises
+# the original ImportError.
+try:
+    from .man_truckscenes.truckscenes_dataset import TruckScenesDataset
+except ImportError as _truckscenes_import_error:
+    _truckscenes_error = _truckscenes_import_error
+
+    class TruckScenesDataset:
+        def __init__(self, *args, **kwargs):
+            raise ImportError('TruckScenesDataset needs extra packages (pip install truckscenes-devkit pyquaternion): '
+                              '%s' % _truckscenes_error) from _truckscenes_error
 
 __all__ = {
     'DatasetTemplate': DatasetTemplate,
