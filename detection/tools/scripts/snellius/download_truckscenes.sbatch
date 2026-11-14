@@ -13,7 +13,11 @@
 # The test split ships an empty sample_annotation.json, so it can only be scored on the TruckScenes server.
 # Train/val both come from the trainval zips; the devkit's splits define which scenes are val.
 #
-# Re-submitting is safe: finished zips are skipped (marker files in $DEST/.done), partial downloads resume.
+# Re-submitting is safe and loses nothing: finished zips are skipped (marker files in $DEST/.done), partial downloads
+# resume, and extraction (extract_zip_resumable.py) skips every file already extracted at full size. A job that hits
+# its time limit mid-unzip therefore continues where it stopped. Extracting ~300k small files per zip on shared
+# scratch is the slow part (~10 h per 3 zips seen on 2026-11-14), hence the 2-day limit.
+# To continue right after a running download job: sbatch --dependency=afterany:<jobid> <this script>
 # /scratch-shared deletes files after 14 days. Check space first with `myquota`.
 # File counts matter too (scratch inode quota is 3M): trainval lidar 0.72M + radar 1.38M files = 2.1M;
 # adding cameras (+0.6M) and test (+0.65M) gives 3.2M and goes over that quota.
@@ -23,7 +27,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=12:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=slurm-%x-%j.out
 
 set -euo pipefail
@@ -31,7 +35,11 @@ set -euo pipefail
 DEST="${DEST:-/scratch-shared/$USER/truckscenes}"
 SPLITS="${SPLITS:-trainval}"
 KEEP="${KEEP:-LIDAR RADAR}"        # sensor-name prefixes to extract, or "all"
-PARALLEL="${PARALLEL:-3}"
+PARALLEL="${PARALLEL:-3}"           # zips handled at once
+EXTRACT_WORKERS="${EXTRACT_WORKERS:-3}"   # processes extracting each zip
+REPO_ROOT="${REPO_ROOT:-$SLURM_SUBMIT_DIR}"
+EXTRACTOR="$REPO_ROOT/detection/tools/extract_zip_resumable.py"
+[ -f "$EXTRACTOR" ] || { echo "Submit from the repository root ($EXTRACTOR not found)" >&2; exit 1; }
 BASE=https://man-truckscenes.s3.eu-central-1.amazonaws.com/release
 
 # name md5 (from the TruckScenes download page)
@@ -50,7 +58,7 @@ test/man-truckscenes_sensordata02_v1.2-test.zip         a62d1a2972c255eaea1bf794
 EOF
 
 mkdir -p "$DEST/zips" "$DEST/.done"
-export DEST KEEP BASE
+export DEST KEEP BASE EXTRACTOR EXTRACT_WORKERS
 
 fetch() {
     local rel="$1" md5="$2" zip name
@@ -66,14 +74,14 @@ fetch() {
     fi
 
     echo "[$(date +%T)] unzip $name"
-    local pats=()
+    local keep=()
     if [[ "$KEEP" != all && "$name" == *sensordata* ]]; then
-        # samples|sweeps/<SENSOR>/<file>; spelled out so it works whether or not '*' crosses '/' in this unzip
-        for s in $KEEP; do pats+=("man-truckscenes/*/${s}_*/*"); done
+        # shellcheck disable=SC2206
+        keep=(--keep $KEEP)   # man-truckscenes/<samples|sweeps>/<SENSOR>_*/<file> for these sensor prefixes
     fi
-    # -DD: stamp files with the extraction time, not the archive's months-old dates, so the scratch
-    # 14-day cleanup doesn't treat freshly unpacked data as already expired.
-    unzip -q -o -DD "$zip" "${pats[@]}" -d "$DEST"
+    # Resumable: files already extracted at full size are skipped. Extraction time as mtime (scratch 14-day cleanup).
+    python3 "$EXTRACTOR" "$zip" "$DEST" "${keep[@]}" --workers "$EXTRACT_WORKERS" || {
+        echo "EXTRACT FAILED $name; zip kept, resubmit to continue" >&2; return 1; }
 
     rm -f "$zip"; touch "$DEST/.done/$name"
     echo "[$(date +%T)] done $name"
