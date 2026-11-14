@@ -118,6 +118,18 @@ def compare(name, a, b, failures, atol=1e-4, rtol=1e-4):
         failures.append('%s: max diff %.3e' % (name, diff))
 
 
+def boxes_in_both(po, pr, tol=1e-3):
+    """How many of po's boxes (box, score, label) also appear in pr, in any order."""
+    def rows(p):
+        return torch.cat([p['pred_boxes'].float(), p['pred_scores'].float()[:, None],
+                          p['pred_labels'].float()[:, None]], 1)
+    a, b = rows(po), rows(pr)
+    if len(a) == 0 or len(b) == 0:
+        return 0, len(a)
+    d = (a[:, None, :] - b[None, :, :]).abs().amax(-1)
+    return int((d.min(1).values < tol).sum()), len(a)
+
+
 def sparse_dense(t):
     """Features of a sparse tensor ordered by (batch, spatial index), so two tensors compare position by position."""
     idx = t.indices.long()
@@ -145,6 +157,7 @@ def main():
         from pcdet.models.dense_heads.voxelnext_head import VoxelNeXtHead as RefHead
     from al3d_det.models.modules.backbone_3d.voxelnext_backbone import VoxelResBackBone8xVoxelNeXt as OurBackbone
     from al3d_det.models.modules.dense_heads.voxelnext_head import VoxelNeXtHead as OurHead
+    import spconv.pytorch as spconv
 
     cfg, pc_range, voxel_size, grid_size = load_cfg(args.cfg)
     class_names = cfg.CLASS_NAMES
@@ -211,11 +224,26 @@ def main():
                     compare('loss %s' % k, torch.tensor(lo[1].get(k, float('nan'))), torch.tensor(lr[1][k]),
                             failures)
             else:
+                # Strict test of decoding + NMS: OpenPCDet's head on exactly our backbone output. With bit-identical
+                # inputs both heads must return the same boxes in the same order.
+                x = bo['encoded_spconv_tensor']
+                same_input = {'batch_size': 2, 'encoded_spconv_tensor': spconv.SparseConvTensor(
+                    x.features.clone(), x.indices.clone(), x.spatial_shape, x.batch_size)}
+                with torch.no_grad():
+                    br_same = ref_hd(same_input)
                 for b in range(2):
-                    po, pr = bo['final_box_dicts'][b], br['final_box_dicts'][b]
-                    print('  frame %d: %d vs %d boxes' % (b, len(po['pred_boxes']), len(pr['pred_boxes'])))
+                    po, pr = bo['final_box_dicts'][b], br_same['final_box_dicts'][b]
+                    print('  frame %d, same head input: %d vs %d boxes' % (b, len(po['pred_boxes']),
+                                                                         len(pr['pred_boxes'])))
                     for k in ('pred_boxes', 'pred_scores', 'pred_labels'):
                         compare('frame %d %s' % (b, k), po[k], pr[k], failures)
+                # Whole model, for information only: the two backbones differ by float rounding (~1e-7, checked
+                # above), which can swap the order of boxes whose scores are (nearly) tied. An untrained model with
+                # the IoU output fixed has many such ties, so compare these as sets.
+                for b in range(2):
+                    same, n = boxes_in_both(bo['final_box_dicts'][b], br['final_box_dicts'][b])
+                    print('  info frame %d, whole model: %d of %d boxes also in OpenPCDet\'s output '
+                          '(ordered by score, the scores match: see above)' % (b, same, n))
 
     print()
     if failures:

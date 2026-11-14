@@ -2,8 +2,8 @@
 #
 # Two checks of the VoxelNeXt model before any real run, on 1 H100, no dataset needed (about 15-30 min):
 #
-#   [1/2] gpu_selftest.py on voxelnext.yaml: a few fp16 training steps at batch 16 and one inference pass on random
-#         points. Shows the model runs in this environment and prints peak GPU memory.
+#   [1/2] gpu_selftest.py on voxelnext.yaml: a few fp16 training steps at batch 4 and one inference pass on random
+#         points. Shows the model runs in this environment (the smoke run checks batch 16 on real data).
 #   [2/2] check_voxelnext_vs_openpcdet.py: our VoxelNeXt vs OpenPCDet's VoxelNeXt (commit below), same weights and
 #         inputs, comparing backbone output, head outputs, training targets, every loss term and the final boxes.
 #
@@ -75,8 +75,12 @@ fi
 cd "$REPO_ROOT/detection/tools"
 set +e
 echo
-echo "==> [1/2] GPU self-test of VoxelNeXt (random points, batch 16, fp16)"
-python gpu_selftest.py --cfg_file "$CFG" --amp fp16 --batch_size 16 --steps 6
+# Batch 4, not 16: the self-test's points are spread uniformly through the whole 3D volume, so almost every voxel is
+# isolated and VoxelNeXt's 5x5x5 strided convolutions make ~27 new voxels from each. At batch 16 that passes spconv's
+# 2^31-byte limit per feature tensor (8.8M voxels x 128 channels in fp16), which real scans (points on surfaces) are
+# far from. Batch 16 on real data is tested by the smoke run (submit_voxelnext.sh with SMOKE=1).
+echo "==> [1/2] GPU self-test of VoxelNeXt (random points, batch 4, fp16)"
+python gpu_selftest.py --cfg_file "$CFG" --amp fp16 --batch_size 4 --steps 6
 SELFTEST=$?
 echo
 echo "==> [2/2] our VoxelNeXt vs OpenPCDet's"
