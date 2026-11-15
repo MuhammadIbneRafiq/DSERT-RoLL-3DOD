@@ -12,8 +12,8 @@
 #   git clone https://github.com/open-mmlab/OpenPCDet $HOME/.cache/openpcdet_ref
 #
 # Submit from the repository root:
-#   sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch                                          # DSERT-RoLL
-#   CFG=cfgs/det_model_cfgs/truckscenes/voxelnext.yaml sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch  # TruckScenes
+#   sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch               # DSERT-RoLL
+#   sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch truckscenes   # TruckScenes (7 heads, velocity)
 # The last lines of slurm-vnx-check-<jobid>.out say PASSED or FAILED for each check.
 #
 #SBATCH --job-name=vnx-check
@@ -35,7 +35,13 @@ source "$SNELLIUS_DIR/snellius_env.sh"
 # The OpenPCDet commit the port was made from (VoxelNeXt files unchanged on master as of 2026-11-14).
 OPENPCDET_COMMIT="${OPENPCDET_COMMIT:-233f849829b6ac19afb8af8837a0246890908755}"
 OPENPCDET_REF="${OPENPCDET_REF:-$HOME/.cache/openpcdet_ref}"
-CFG="${CFG:-cfgs/det_model_cfgs/dsert/voxelnext.yaml}"   # TruckScenes: CFG=cfgs/det_model_cfgs/truckscenes/voxelnext.yaml
+# Which model: first argument after the script (dsert | truckscenes), else $CFG, else DSERT-RoLL.
+case "${1:-}" in
+    truckscenes) CFG=cfgs/det_model_cfgs/truckscenes/voxelnext.yaml ;;
+    dsert)       CFG=cfgs/det_model_cfgs/dsert/voxelnext.yaml ;;
+    "")          CFG="${CFG:-cfgs/det_model_cfgs/dsert/voxelnext.yaml}" ;;
+    *)           echo "unknown argument '$1' (use dsert or truckscenes)" >&2; exit 1 ;;
+esac
 echo "==> config: $CFG"
 
 load_cuda_module
