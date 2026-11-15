@@ -295,7 +295,7 @@ def main():
 
     try:
         import al3d_utils.box_utils  # noqa: F401
-    except ImportError:
+    except (ImportError, OSError):   # OSError: CUDA libraries missing on a CPU node
         print('(compiled CUDA ops not found: importing stand-ins, fine for these CPU checks)')
         sys.meta_path.insert(0, _StubCompiledOps())
     from truckscenes import TruckScenes

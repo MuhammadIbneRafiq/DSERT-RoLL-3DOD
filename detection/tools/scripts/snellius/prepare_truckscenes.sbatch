@@ -14,12 +14,16 @@
 # Re-running rebuilds the info files (a few minutes). CHECK_SAMPLES / CHECK_ITEMS set how many samples checks 1-2 and
 # 4 look at; check 3 (GT through the official evaluation) always uses the whole val split.
 #
+# Runs on the staging partition (CPU, internet access for pip), as download_truckscenes.sbatch: the project has no
+# budget for genoa/rome, and nothing here needs a GPU. Without a GPU the repo's compiled CUDA ops do not load;
+# check_truckscenes_data.py then imports stand-ins (none of its checks call them).
+#
 #SBATCH --job-name=truckscenes-prep
-#SBATCH --partition=genoa
+#SBATCH --partition=staging
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --time=04:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --time=06:00:00
 #SBATCH --output=slurm-%x-%j.out
 
 set -euo pipefail
