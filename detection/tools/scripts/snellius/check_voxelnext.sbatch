@@ -12,7 +12,8 @@
 #   git clone https://github.com/open-mmlab/OpenPCDet $HOME/.cache/openpcdet_ref
 #
 # Submit from the repository root:
-#   sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch
+#   sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch                                          # DSERT-RoLL
+#   CFG=cfgs/det_model_cfgs/truckscenes/voxelnext.yaml sbatch detection/tools/scripts/snellius/check_voxelnext.sbatch  # TruckScenes
 # The last lines of slurm-vnx-check-<jobid>.out say PASSED or FAILED for each check.
 #
 #SBATCH --job-name=vnx-check
@@ -35,6 +36,7 @@ source "$SNELLIUS_DIR/snellius_env.sh"
 OPENPCDET_COMMIT="${OPENPCDET_COMMIT:-233f849829b6ac19afb8af8837a0246890908755}"
 OPENPCDET_REF="${OPENPCDET_REF:-$HOME/.cache/openpcdet_ref}"
 CFG="${CFG:-cfgs/det_model_cfgs/dsert/voxelnext.yaml}"   # TruckScenes: CFG=cfgs/det_model_cfgs/truckscenes/voxelnext.yaml
+echo "==> config: $CFG"
 
 load_cuda_module
 activate_env

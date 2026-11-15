@@ -141,11 +141,12 @@ def build_dataset(cfg_file, dataroot, version, info_dir, training, sensor=None, 
     sets = ['DATA_CONFIG.DATA_PATH', dataroot, 'DATA_CONFIG.VERSION', version,
             'DATA_CONFIG.DATA_SPLIT.train', splits['train'], 'DATA_CONFIG.DATA_SPLIT.test', splits['test'],
             'DATA_CONFIG.SAMPLED_INTERVAL.train', str(interval), 'DATA_CONFIG.SAMPLED_INTERVAL.test', str(interval)]
-    if info_dir:
-        sets += ['DATA_CONFIG.INFO_DIR', info_dir]
     if sensor:
         sets += ['DATA_CONFIG.SENSOR.NAME', sensor]
     cfg_from_list(sets, cfg)
+    if info_dir:
+        # Set directly: INFO_DIR is null in the config, and cfg_from_list refuses to change a value's type.
+        cfg.DATA_CONFIG.INFO_DIR = info_dir
 
     class Log:
         def info(self, m):
