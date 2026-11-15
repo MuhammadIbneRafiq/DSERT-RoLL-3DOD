@@ -9,6 +9,9 @@ Changes from OpenPCDet, none of which change what the model computes:
 - The IoU-branch losses compute the IoU between each target box and its own prediction with boxes_iou3d_gpu(...)
   .diagonal(), because this repo's compiled iou3d_nms op has no boxes_aligned_overlap_bev_gpu. Same values, no
   rebuild of the CUDA ops needed. Prediction/target pairs are taken in the same order the targets were written.
+- The target heatmap is put in the sparse tensor's voxel order (assign_targets(..., batch_index)). OpenPCDet
+  concatenates the frames' targets, which matches the prediction only if the head's voxels are grouped by frame;
+  the regression/IoU losses and decoding already select voxels by batch index. Identical when they are grouped.
 - Double-flip test-time augmentation is not ported (OpenPCDet uses it for nuScenes only).
 - At inference the IoU-branch value (iou + 1) / 2 is clamped to [0, 1] before hm^(1-r) * iou^r; OpenPCDet does not
   clamp, so an output below -1 there gives a NaN score. Values inside [0, 1] are unchanged.
@@ -179,8 +182,11 @@ class VoxelNeXtHead(nn.Module):
             self.add_module('crit_iou_reg', IouRegLossSparse())
 
     # ------------------------------------------------------------------ targets
-    def assign_targets(self, gt_boxes, num_voxels, spatial_indices, spatial_shape):
-        """gt_boxes: (B, M, 7 + C + 1), last column the class index (0 = padding)."""
+    def assign_targets(self, gt_boxes, num_voxels, spatial_indices, spatial_shape, batch_index=None):
+        """
+        gt_boxes: (B, M, 7 + C + 1), last column the class index (0 = padding).
+        batch_index: frame of each voxel in the sparse tensor; the target heatmap rows are put in that order.
+        """
         target_assigner_cfg = self.model_cfg.TARGET_ASSIGNER_CONFIG
         if 'vel' not in self.separate_head_cfg.HEAD_ORDER:
             # No velocity output (DSERT-RoLL): drop the extra columns, as CenterHead does.
@@ -225,7 +231,13 @@ class VoxelNeXtHead(nn.Module):
                 masks_list.append(mask.to(gt_boxes_single_head.device))
                 gt_boxes_list.append(gt_boxes_single_head[:, :-1])
 
-            ret_dict['heatmaps'].append(torch.cat(heatmap_list, dim=1).permute(1, 0))
+            heatmaps = torch.cat(heatmap_list, dim=1).permute(1, 0)  # rows: frame 0's voxels, then frame 1's, ...
+            if batch_index is not None:
+                # Put each row at its voxel's position in the sparse tensor, which the prediction follows. The
+                # tensor's voxels need not be grouped by frame (the last backbone layer is a regular sparse conv).
+                order = torch.cat([torch.nonzero(batch_index == b).squeeze(1) for b in range(batch_size)])
+                heatmaps = heatmaps.new_zeros(heatmaps.shape).index_copy_(0, order, heatmaps)
+            ret_dict['heatmaps'].append(heatmaps)
             ret_dict['target_boxes'].append(torch.stack(target_boxes_list, dim=0))
             ret_dict['inds'].append(torch.stack(inds_list, dim=0))
             ret_dict['masks'].append(torch.stack(masks_list, dim=0))
@@ -453,7 +465,7 @@ class VoxelNeXtHead(nn.Module):
 
         if self.training:
             self.forward_ret_dict['target_dicts'] = self.assign_targets(
-                data_dict['gt_boxes'], num_voxels, spatial_indices, spatial_shape)
+                data_dict['gt_boxes'], num_voxels, spatial_indices, spatial_shape, batch_index)
 
         self.forward_ret_dict['pred_dicts'] = pred_dicts
         self.forward_ret_dict['voxel_indices'] = voxel_indices

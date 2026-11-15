@@ -33,7 +33,12 @@ def grad_norm(params):
     return float(torch.stack(g).norm()) if g else 0.0
 
 
-def hm_report(model, batches):
+def grouped_by_frame(batch_index):
+    """True if the head's voxels come frame 0 first, then frame 1, ... (what OpenPCDet's target heatmap assumed)."""
+    return bool((batch_index[1:] >= batch_index[:-1]).all())
+
+
+def hm_report(model, batches, order_stats=None):
     """Mean predicted heatmap (eval mode) at the voxels that carry a target, vs the 99th percentile elsewhere."""
     model.eval()
     head = model.dense_head
@@ -44,8 +49,10 @@ def hm_report(model, batches):
             load_data_to_gpu(b)
             model(b)
             x = b['encoded_spconv_tensor']
-            spatial_shape, _, _, spatial_indices, num_voxels = head._get_voxel_infos(x)
-            td = head.assign_targets(b['gt_boxes'], num_voxels, spatial_indices, spatial_shape)
+            spatial_shape, batch_index, _, spatial_indices, num_voxels = head._get_voxel_infos(x)
+            if order_stats is not None:
+                order_stats.append(grouped_by_frame(batch_index))
+            td = head.assign_targets(b['gt_boxes'], num_voxels, spatial_indices, spatial_shape, batch_index)
             hm = head.forward_ret_dict['pred_dicts'][0]['hm'].sigmoid().max(dim=1).values
             pos = td['heatmaps'][0].max(dim=1).values >= 1.0
             at_obj.append(hm[pos])
@@ -79,8 +86,11 @@ def run(setup, batches, ds, steps, lr):
     enc = [p for n, p in model.named_parameters() if n.startswith(('vfe', 'backbone3d'))]
     head = [p for n, p in model.named_parameters() if n.startswith('dense_head')]
 
+    order_stats = []
+    a, o = hm_report(model, batches, order_stats)
+    print("head voxels grouped by frame: %d of %d batches (if fewer, OpenPCDet's concatenated target heatmap "
+          "was misaligned with the prediction)" % (sum(order_stats), len(order_stats)))
     print('step   loss   hm_loss  loc_loss | grad enc / head | scale   | hm at objects / elsewhere p99')
-    a, o = hm_report(model, batches)
     print('%4d  %s | %.3f / %.3f' % (0, ' ' * 56, a, o))
     model.train()
     for step in range(1, steps + 1):

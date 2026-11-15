@@ -69,10 +69,10 @@ def main():
             model(batch)
         x = batch['encoded_spconv_tensor']
         spatial_shape, batch_index, voxel_indices, spatial_indices, num_voxels = head._get_voxel_infos(x)
-        td = head.assign_targets(gt, num_voxels, spatial_indices, spatial_shape)
-        hm = head.forward_ret_dict['pred_dicts'][0]['hm'].sigmoid()  # (N, C), eval-mode BN
+        td = head.assign_targets(gt, num_voxels, spatial_indices, spatial_shape, batch_index)
+        hm = head.forward_ret_dict['pred_dicts'][0]['hm'].sigmoid()  # (N, C), eval-mode BN, tensor voxel order
         hm_t = td['heatmaps'][0]
-        offsets = np.cumsum([0] + num_voxels[:-1])
+        print('  head voxels grouped by frame: %s' % bool((batch_index[1:] >= batch_index[:-1]).all()))
 
         for b in range(gt.shape[0]):
             n_pts = int((batch['points'][:, 0] == b).sum())
@@ -91,9 +91,10 @@ def main():
                 dec_x = (si[:, 0] + tb[:, 0]) * stride * vs[0] + pcr[0]
                 dec_y = (si[:, 1] + tb[:, 1]) * stride * vs[1] + pcr[1]
                 dec_err = torch.max((dec_x - boxes[:, 0]).abs().max(), (dec_y - boxes[:, 1]).abs().max())
-                gi = inds + int(offsets[b])
+                rows_b = torch.nonzero(batch_index == b).squeeze(1)  # this frame's voxels, in tensor order
+                gi = rows_b[inds]
                 hm_pos = hm[gi].max(dim=1).values
-                hm_b = hm[offsets[b]:offsets[b] + num_voxels[b]]
+                hm_b = hm[rows_b]
                 line += (' | box-to-voxel m: median %.2f max %.2f | decode err %.3f m | target hm at those voxels '
                          'min %.2f | pred hm there median %.3f, elsewhere p99 %.3f max %.3f'
                          % (dist_m.median(), dist_m.max(), dec_err, hm_t[gi].max(dim=1).values.min(),
