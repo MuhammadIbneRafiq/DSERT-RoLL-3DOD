@@ -7,10 +7,9 @@
 #   sbatch --export=ALL,DATA_ROOT=/scratch-shared/$USER/truckscenes/man-truckscenes,SENSOR=radar,SMOKE=1 \
 #       detection/tools/scripts/snellius/train_truckscenes.sbatch
 #
-# Data staging (STAGE=auto, on a node with local NVMe): copies only the files this run reads, i.e. for both splits the
-# keyframe + the first NSWEEPS sweeps of each channel of this modality (listed from the info files), plus the devkit
-# tables (the evaluation needs them) and the info files. Radar stages ~10 GB, LiDAR (3 sweeps) about half of the 459 GB
-# LiDAR folder.
+# Data: read in place from DATA_ROOT by default (STAGE=0, see below). STAGE=1 copies to node-local NVMe only the files
+# this run reads (both splits, keyframe + first NSWEEPS sweeps of each channel of this modality, every 50th sample in
+# SMOKE mode), plus the devkit tables and the info files.
 #
 # Batch and LR: 1 GPU x BATCH (default 16, the DSERT-RoLL VoxelNeXt runs' batch). LR defaults to OpenPCDet's nuScenes
 # VoxelNeXt LR (0.001 at a global batch of 32) scaled linearly: 0.001 x BATCH / 32, i.e. 0.0005 at 16 (the same rule
@@ -25,7 +24,7 @@
 #SBATCH --ntasks=1
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --constraint=scratch-node
+# No --constraint=scratch-node: data is read in place (STAGE=0). For STAGE=1 add: sbatch --constraint=scratch-node ...
 #SBATCH --time=1-00:00:00
 #SBATCH --output=slurm-%x-%j.out
 
@@ -48,7 +47,11 @@ PRETRAINED="${PRETRAINED:-}"                     # checkpoint to initialise from
 PRETRAINED_SCOPE="${PRETRAINED_SCOPE:-encoder}"  # encoder = VFE + sparse backbone (head fresh) | all
 SMOKE="${SMOKE:-0}"                              # 1 = every 50th sample of train and val, 2 epochs
 SKIP_EVAL="${SKIP_EVAL:-0}"
-STAGE="${STAGE:-auto}"                           # auto = stage to node-local NVMe when the node has it | 1 | 0
+STAGE="${STAGE:-0}"                              # 0 = read in place (default) | 1 / auto = copy to node-local NVMe first.
+                                                 # Staging is off: rsync of the ~0.4M LiDAR / ~0.9M radar files took
+                                                 # > 2.5 h with the GPU idle (smoke jobs 29274083/4, 2026-11-15), and
+                                                 # loading is CPU-bound anyway (~2 s/sample/core from /scratch-shared,
+                                                 # mostly .pcd decoding).
 WANDB_PROJECT="${WANDB_PROJECT-truckscenes-single-sensor}"
 SEED="${SEED:-}"
 INPUT_FEATURE="${INPUT_FEATURE:-}"               # 4th channel: empty = intensity (LiDAR) / doppler (radar) | rcs | none
@@ -113,16 +116,18 @@ if [ "$STAGE" = "1" ] || { [ "$STAGE" = "auto" ] && [ "$ON_NVME" = "1" ]; }; the
         rsync -a "$DATA_ROOT/al3d_infos/$VERSION" "$RUN_DATA/al3d_infos/"
         LIST="$TMPDIR/staged_files.txt"
         # The files the dataset will read: train + val, this modality, first NSWEEPS sweeps per channel.
-        python - "$RUN_DATA/al3d_infos/$VERSION" "$SENSOR" "$CFG" "${NSWEEPS}" > "$LIST" <<'EOF'
+        # SMOKE reads every 50th sample only: stage just those.
+        python - "$RUN_DATA/al3d_infos/$VERSION" "$SENSOR" "$CFG" "${NSWEEPS}" "$([ "$SMOKE" = "1" ] && echo 50 || echo 1)" \
+            > "$LIST" <<'EOF'
 import pickle, sys, yaml, os
-info_dir, sensor, cfg, nsw = sys.argv[1:5]
+info_dir, sensor, cfg, nsw, interval = sys.argv[1:6]
 if not nsw:
     base = yaml.safe_load(open(cfg))['DATA_CONFIG']['_BASE_CONFIG_']
     nsw = yaml.safe_load(open(base))['SENSOR']['NSWEEPS'][sensor]
 files = set()
 for split in ('train', 'val'):
     with open(os.path.join(info_dir, 'truckscenes_infos_%s.pkl' % split), 'rb') as f:
-        for info in pickle.load(f)['infos']:
+        for info in pickle.load(f)['infos'][::int(interval)]:
             for chain in info['sweeps'][sensor].values():
                 files.update(sw['filename'] for sw in chain[:int(nsw)])
 print('\n'.join(sorted(files)))
